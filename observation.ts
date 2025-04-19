@@ -2,18 +2,29 @@
 class Observation {
     private bot: any;
     private surroundingBlocks: Set<string>;
-    private inventoryItems: Set<string>;
+    private inventoryItems: Map<string, number>
+
 
     constructor(bot: any) {
         this.bot = bot;
         this.surroundingBlocks = new Set();
-        this.inventoryItems = new Set();
+        // Initialize the inventory items as a datastructure with pairs <ItemName, ItemCount>
+        this.inventoryItems = new Map();
     }
 
     public getInventoryItems() {
-        this.bot.inventory.items().forEach((item:any) => {
-            if (item) this.inventoryItems.add(item.name);
-        });
+        const inventory = this.bot.inventory.items();
+        this.inventoryItems.clear(); // Clear the previous inventory items
+
+        for (const item of inventory) {
+            const itemName = item.name;
+            if (this.inventoryItems.has(itemName)) {
+                this.inventoryItems.set(itemName, item.count + 1);
+            } else {
+                this.inventoryItems.set(itemName, 1);
+            }
+        }
+
         return this.inventoryItems;
     }
 
@@ -35,10 +46,20 @@ class Observation {
         return surroundingBlocks;
     }
 
+    public getCurrentBotPosition() {
+        const position = this.bot.entity.position;
+        return {
+            x: position.x,
+            y: position.y,
+            z: position.z,
+        };
+    }
+
     //to string method to print the current observation (it will have more observations in the future)
     public toString() {
         return `Surrounding blocks: ${Array.from(this.getSurroundingBlocks(2, 2, 2)).join(", ")}\n` +
-            `Inventory items: ${Array.from(this.getInventoryItems()).join(", ")}\n`;
+            `Inventory items: ${Array.from(this.getInventoryItems()).join(", ")}\n` +
+            `Current bot position: ${JSON.stringify(this.getCurrentBotPosition())}\n`;
     }
 }
 

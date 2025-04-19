@@ -1,3 +1,4 @@
+import { Bot } from "mineflayer";
 import { askAgent, askAgentImage } from "./agent";
 
 const mineflayer = require('mineflayer');
@@ -5,6 +6,9 @@ const { mineflayer: mineflayerViewer } = require('prismarine-viewer')
 const dotenv = require('dotenv');
 import puppeteer, { Page } from "puppeteer"
 dotenv.config();
+
+
+
 
 
 let browser
@@ -42,7 +46,15 @@ export function connect(port = process.env.port) {
         console.log(`Connected to server on port ${process.env.port?.toString()}`);
     });
 
-    mineflayerViewer(bot, { port: 9333, firstPerson: false }) // crea il viewer
+    mineflayerViewer(bot, { port: 9333, firstPerson: true }) // crea il viewer
+
+    const { Vec3 } = require('vec3')
+
+
+    bot.once('spawn', () => {
+        const basePos = bot.entity.position.offset(0, 2, 0)
+        drawText(bot, 'A', basePos)
+    })
 
     bot.on('chat', async (username:string, message:string) => {
         if (username === bot.username) return;
@@ -63,7 +75,7 @@ export function connect(port = process.env.port) {
             const base64image = await makeScreenshot();
             
 
-            askAgent(base64image, messageLower).then((response) => {
+            askAgentImage(base64image, messageLower).then((response) => {
                 bot.chat(response);
             }).catch((error) => {
                 console.error("Error:", error);
@@ -74,7 +86,57 @@ export function connect(port = process.env.port) {
 
     bot.loadPlugin(require('mineflayer-pathfinder').pathfinder);
     bot.loadPlugin(require('mineflayer-collectblock').plugin);
-
+    
     return bot;
 }
+
+type CharMap = Record<string, string[]>
+
+/**
+ * Mappa base per lettere pixelate 5x5
+ */
+const charMap: CharMap = {
+  'A': [
+    ' 1 ',
+    '1 1',
+    '111',
+    '1 1',
+    '1 1'
+  ],
+  // Aggiungi altre lettere se vuoi
+}
+import { Vec3 } from 'vec3'
+/**
+ * Disegna un testo 3D con punti usando drawPoints
+ */
+function drawText(
+  bot: Bot,
+  text: string,
+  basePosition: Vec3,
+  idPrefix = 'text',
+  color = 0x00ff00,
+  size = 5
+): void {
+  const points: Vec3[] = []
+  const spacing = 6
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i].toUpperCase()
+    const glyph = charMap[char]
+    if (!glyph) continue
+
+    for (let y = 0; y < glyph.length; y++) {
+      for (let x = 0; x < glyph[y].length; x++) {
+        if (glyph[y][x] === '1') {
+          const point = basePosition.offset(x + i * spacing, -y, 0)
+          points.push(point)
+        }
+      }
+    }
+  }
+
+  // @ts-ignore: drawPoints is dynamically added by prismarine-viewer
+  bot.viewer.drawPoints(`${idPrefix}_${text}`, points, color, size)
+}
+
 
