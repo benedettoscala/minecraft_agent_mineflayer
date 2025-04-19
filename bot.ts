@@ -74,7 +74,7 @@ export function connect(port = process.env.port) {
             
 
             messageLower = messageLower.replace("donna", "");
-            messageLower = "username: " + username + " " + messageLower;
+            messageLower = "username (who is speaking): " + username + " " + messageLower;
 
             const base64image = await makeScreenshot();
             

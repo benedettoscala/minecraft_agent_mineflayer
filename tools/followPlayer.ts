@@ -26,7 +26,9 @@ const goToPlayer = tool(
             }
         });
 
-        return `Following ${input.username}`;
+        bot.lookAt(player.position.offset(0, 2, 0), true); // Look at the player
+
+        return `I reached ${input.username}`;
     },
     {
         name: "goToPlayer",
