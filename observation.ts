@@ -48,10 +48,13 @@ class Observation {
 
     public getCurrentBotPosition() {
         const position = this.bot.entity.position;
+        const yaw = this.bot.entity.yaw;
+
         return {
             x: position.x,
             y: position.y,
             z: position.z,
+            yaw: yaw,
         };
     }
 

@@ -46,14 +46,18 @@ export function connect(port = process.env.port) {
         console.log(`Connected to server on port ${process.env.port?.toString()}`);
     });
 
-    mineflayerViewer(bot, { port: 9333, firstPerson: true }) // crea il viewer
+    
 
     const { Vec3 } = require('vec3')
 
 
+
     bot.once('spawn', () => {
         const basePos = bot.entity.position.offset(0, 2, 0)
-        drawText(bot, 'A', basePos)
+
+        mineflayerViewer(bot, { port: 9333, firstPerson: true }) // crea il viewer
+    
+        bot.viewer.drawText('greeting', 'Ciao mondo!', { x: 244, y: 65, z: 501 }, 0xffff00, 2)
     })
 
     bot.on('chat', async (username:string, message:string) => {
@@ -86,7 +90,7 @@ export function connect(port = process.env.port) {
 
     bot.loadPlugin(require('mineflayer-pathfinder').pathfinder);
     bot.loadPlugin(require('mineflayer-collectblock').plugin);
-    
+
     return bot;
 }
 

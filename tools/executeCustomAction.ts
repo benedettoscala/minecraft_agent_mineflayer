@@ -8,7 +8,7 @@ const executeCustomAction = tool(
             console.log(input.code)
             //append the import of bot to the code
             input.code = `const {vec3} = require("vec3");; const bot = require("../index").bot;` + input.code;
-            eval(input.code);
+            await eval(input.code);
             
         } catch (error : any) {
             //return the stacktrace

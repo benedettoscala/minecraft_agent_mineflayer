@@ -64,12 +64,17 @@ export async function askAgentImage(base64Image: any, prompt: string) {
     const obs = new Observation(bot);
     console.log("Observation of the game status: " + obs.toString() + "\n");
 
+    
+
+    //load a json file with the system message it is one folder behind
+    const textSystemMessage = fs.readFileSync(path.join(__dirname, "../systemMessage.json"), "utf8");
+    const systemMessageJson = JSON.parse(textSystemMessage);
     // Messaggi
     const systemMessage = new SystemMessage({
         content: [
             {
                 type: "text",
-                text: "You are a Minecraft bot that can perform various tasks. You think that you are an actual Player. You can use the tools available to you to accomplish these tasks.",
+                text: systemMessageJson.content,
             },
         ],
     });
@@ -125,9 +130,14 @@ export async function askAgent(imagePath: any, prompt: string) {
         ],
       });
 
+
+    //load a json file with the system message
+    const textSystemMessage = fs.readFileSync(path.join(__dirname, "systemMessage.json"), "utf8");
+    const systemMessageJson = JSON.parse(textSystemMessage);
+
     const systemMessage = new SystemMessage({
       content: [
-        { type: "text", text: "You are a Minecraft bot that can perform various tasks. You think that you are an actual Player. You can use the tools available to you to accomplish these tasks." }
+        { type: "text", text: systemMessageJson.content },
       ],
     });
 
