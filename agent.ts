@@ -1,6 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { MemorySaver } from "@langchain/langgraph";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage, trimMessages } from "@langchain/core/messages";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
@@ -44,67 +44,81 @@ const agent = createReactAgent({
     checkpointer: agentCheckpointer,
 });
 
+interface Message {
+  content: string | { [key: string]: any };
+}
+
+function dummyTokenCounter(messages: Message[]): number {
+  return messages.reduce((count: number, msg: Message) => {
+      return count + (typeof msg.content === "string" ? msg.content.length : JSON.stringify(msg.content).length);
+  }, 0);
+}
 
 export async function askAgentImage(base64Image: any, prompt: string) {
-    // Path e conversione immagine
-    const bot = require("./index").bot;
+  const bot = require("./index").bot;
 
-    // Recupero coordinate del player
-    const player = bot.entity.position;
-    const playerCoordinates = {
-        x: player.x,
-        y: player.y,
-        z: player.z,
-    };
+  // Recupero coordinate del player
+  const player = bot.entity.position;
+  const playerCoordinates = {
+      x: player.x,
+      y: player.y,
+      z: player.z,
+  };
 
-    // Aggiunta delle coordinate al prompt
-    prompt += " Current player coordinates: " + JSON.stringify(playerCoordinates);
+  // Aggiunta delle coordinate al prompt
+  prompt += " Current player coordinates: " + JSON.stringify(playerCoordinates);
 
-    // Osservazione dello stato del gioco
-    const obs = new Observation(bot);
-    console.log("Observation of the game status: " + obs.toString() + "\n");
+  // Osservazione dello stato del gioco
+  const obs = new Observation(bot);
+  console.log("Observation of the game status: " + obs.toString() + "\n");
 
-    
+  // Caricamento messaggio di sistema
+  const textSystemMessage = fs.readFileSync(path.join(__dirname, "../systemMessage.json"), "utf8");
+  const systemMessageJson = JSON.parse(textSystemMessage);
 
-    //load a json file with the system message it is one folder behind
-    const textSystemMessage = fs.readFileSync(path.join(__dirname, "../systemMessage.json"), "utf8");
-    const systemMessageJson = JSON.parse(textSystemMessage);
-    // Messaggi
-    const systemMessage = new SystemMessage({
-        content: [
-            {
-                type: "text",
-                text: systemMessageJson.content,
-            },
-        ],
-    });
+  const systemMessage = new SystemMessage({
+      content: [
+          {
+              type: "text",
+              text: systemMessageJson.content,
+          },
+      ],
+  });
 
-    const systemMessageWithObservation = new SystemMessage({
-        content: [
-            {
-                type: "text",
-                text: "Observation of the game status: " + obs.toString() + "\n",
-            },
-        ],
-    });
+  const humanMessageWithObservation = new HumanMessage({
+      content: [
+          {
+              type: "text",
+              text: "Observation of the game status: " + obs.toString() + "\n",
+          },
+      ],
+  });
 
-    const message = new HumanMessage({
-        content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: base64Image } },
-        ],
-    });
+  const message = new HumanMessage({
+      content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: base64Image } },
+      ],
+  });
 
-    // Invocazione dell'agente
-    const response = await agent.invoke(
-        {
-            messages: [systemMessage, systemMessageWithObservation, message],
-        },
-        { configurable: { thread_id: 42 } }
-    );
+  // Trim dei messaggi per rispettare eventuali limiti di token
+  const trimmedMessages = await trimMessages({
+      maxTokens: 10000, // o il limite specifico del tuo modello
+      tokenCounter: new ChatOpenAI({ model: "gpt-4o" }),
+      strategy: "last", // tieni i messaggi più recenti
+      includeSystem: true,
+  }).invoke([systemMessage, humanMessageWithObservation, message]);
 
-    const llmresponse = response.messages[response.messages.length - 1].content;
-    return llmresponse;
+  // Invocazione dell'agente
+  const response = await agent.invoke(
+      {
+          messages: trimmedMessages,
+      },
+      { configurable: { thread_id: 42 } }
+  );
+
+  const llmresponse = response.messages[response.messages.length - 1].content;
+  return llmresponse;
 }
 
 export async function askAgent(imagePath: any, prompt: string) {

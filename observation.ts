@@ -50,6 +50,23 @@ class Observation {
         return surroundingBlocks;
     }
     
+    public getSurroundingBlocksWithNames(x_distance: number, y_distance: number, z_distance: number) {
+        //con un set così non ci sono duplicati
+        const surroundingBlocks: Set<string> = new Set();
+
+        for (let x = -x_distance; x <= x_distance; x++) {
+            for (let y = -y_distance; y <= y_distance; y++) {
+                for (let z = -z_distance; z <= z_distance; z++) {
+                    const pos = this.bot.entity.position.offset(x, y, z);
+                    const block = this.bot.blockAt(pos);
+                    if (block && block.type !== 0) {
+                        surroundingBlocks.add(block.name);
+                    }
+                }
+            }
+        }
+        return surroundingBlocks;
+    }
 
     public getCurrentBotPosition() {
         const position = this.bot.entity.position;
@@ -65,7 +82,8 @@ class Observation {
 
     //to string method to print the current observation (it will have more observations in the future)
     public toString() {
-        return `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(5, 5, 5))}\n` +
+        return `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(1, 1, 1))}\n` +
+            `Surrounding blocks with names (less detail): ${Array.from(this.getSurroundingBlocksWithNames(5, 5, 5)).join(", ")}\n` +
             `Inventory items: ${Array.from(this.getInventoryItems()).join(", ")}\n` +
             `Current bot position: ${JSON.stringify(this.getCurrentBotPosition())}\n`;
     }
