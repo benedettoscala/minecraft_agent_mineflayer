@@ -39,7 +39,8 @@ class Observation {
                     if (block && block.type !== 0) {
                         surroundingBlocks.push({
                             name: block.name,
-                            position: { x: pos.x, y: pos.y, z: pos.z },
+                            //approssimazione a 2 decimali
+                            position: { x: parseFloat(pos.x.toFixed(2)), y: parseFloat(pos.y.toFixed(2)), z: parseFloat(pos.z.toFixed(2)) },
                             id: block.type
                         });
                     }
@@ -73,10 +74,10 @@ class Observation {
         const yaw = this.bot.entity.yaw;
 
         return {
-            x: position.x,
-            y: position.y,
-            z: position.z,
-            yaw: yaw,
+            x: parseFloat(position.x.toFixed(2)),
+            y: parseFloat(position.y.toFixed(2)),
+            z: parseFloat(position.z.toFixed(2)),
+            yaw: parseFloat(yaw.toFixed(2))
         };
     }
 
