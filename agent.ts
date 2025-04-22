@@ -9,33 +9,25 @@ import fs from "fs";
 import { goToPlayer } from "./tools/followPlayer";
 import { mineBlockTool } from "./tools/mineBlock";
 import { placeItems } from "./tools/placeItem";
-import {Observation} from  "./observation";
-import { exec } from "child_process";
+import { Observation } from "./observation";
 import { executeCustomAction } from "./tools/executeCustomAction";
 import { craftItem } from "./tools/craftItem";
+import { killMob } from "./tools/killmob";
 
+// Define tool: example adder
+const adderSchema = z.object({ a: z.number(), b: z.number() });
+const adderTool = tool(async (input) => {
+    const sum = input.a + input.b;
+    return `The sum of ${input.a} and ${input.b} is ${sum}`;
+}, {
+    name: "adder",
+    description: "Adds two numbers together",
+    schema: adderSchema,
+});
 
-// Assicurati che il bot sia correttamente esportato da index.ts
-// Tool e modello
-const adderSchema = z.object({
-    a: z.number(),
-    b: z.number(),
-  });
-  
-  const adderTool = tool(
-    async (input): Promise<string> => {
-      const sum = input.a + input.b;
-      return `The sum of ${input.a} and ${input.b} is ${sum}`;
-    },
-    {
-      name: "adder",
-      description: "Adds two numbers together",
-      schema: adderSchema,
-    }
-  );
-
-const agentTools = [adderTool, goToPlayer, mineBlockTool, placeItems, executeCustomAction, craftItem];
-const agentModel = new ChatOpenAI({model:"gpt-4o", temperature:0.7});
+// LLM agent
+const agentTools = [adderTool, goToPlayer, mineBlockTool, placeItems, craftItem, killMob, executeCustomAction];
+const agentModel = new ChatOpenAI({ model: "gpt-4o", temperature: 0.7 });
 const agentCheckpointer = new MemorySaver();
 
 const agent = createReactAgent({
@@ -44,131 +36,88 @@ const agent = createReactAgent({
     checkpointer: agentCheckpointer,
 });
 
-interface Message {
-  content: string | { [key: string]: any };
-}
-
-function dummyTokenCounter(messages: Message[]): number {
-  return messages.reduce((count: number, msg: Message) => {
-      return count + (typeof msg.content === "string" ? msg.content.length : JSON.stringify(msg.content).length);
-  }, 0);
-}
-
-export async function askAgentImage(base64Image: any, prompt: string) {
-  const bot = require("./index").bot;
-
-  // Recupero coordinate del player
-  const player = bot.entity.position;
-  const playerCoordinates = {
-      x: player.x,
-      y: player.y,
-      z: player.z,
-  };
-
-  // Aggiunta delle coordinate al prompt
-  prompt += " Current player coordinates: " + JSON.stringify(playerCoordinates);
-
-  // Osservazione dello stato del gioco
-  const obs = new Observation(bot);
-  console.log("Observation of the game status: " + obs.toString() + "\n");
-
-  // Caricamento messaggio di sistema
-  const textSystemMessage = fs.readFileSync(path.join(__dirname, "../systemMessage.json"), "utf8");
-  const systemMessageJson = JSON.parse(textSystemMessage);
-
-  const systemMessage = new SystemMessage({
-      content: [
-          {
-              type: "text",
-              text: systemMessageJson.content,
-          },
-      ],
-  });
-
-  const humanMessageWithObservation = new HumanMessage({
-      content: [
-          {
-              type: "text",
-              text: "Observation of the game status: " + obs.toString() + "\n",
-          },
-      ],
-  });
-
-  const message = new HumanMessage({
-      content: [
-          { type: "text", text: prompt },
-          { type: "image_url", image_url: { url: base64Image } },
-      ],
-  });
-
-  // Trim dei messaggi per rispettare eventuali limiti di token
-  const trimmedMessages = await trimMessages({
-      maxTokens: 10000, // o il limite specifico del tuo modello
-      tokenCounter: new ChatOpenAI({ model: "gpt-4o" }),
-      strategy: "last", // tieni i messaggi più recenti
-      includeSystem: true,
-  }).invoke([systemMessage, humanMessageWithObservation, message]);
-
-  // Invocazione dell'agente
-  const response = await agent.invoke(
-      {
-          messages: trimmedMessages,
-      },
-      { configurable: { thread_id: 42 } }
-  );
-
-  const llmresponse = response.messages[response.messages.length - 1].content;
-  return llmresponse;
-}
-
-export async function askAgent(imagePath: any, prompt: string) {
-  
-    const bot = require("./index").bot;
-    
-    //retrieve the current user coordinates
-    const player = bot.entity.position;
-    const playerCoordinates = {
-        x: player.x,
-        y: player.y,
-        z: player.z,
-        };
-
-    //add the coordinates to the prompt
-    prompt = prompt + " current player coordinates:" + JSON.stringify(playerCoordinates);
-
-    const obs = new Observation(bot);
-    
-    const message = new HumanMessage({
-        content: [
-          { type: "text", text: prompt }
-        ],
-      });
-
-
-    //load a json file with the system message
-    const textSystemMessage = fs.readFileSync(path.join(__dirname, "systemMessage.json"), "utf8");
-    const systemMessageJson = JSON.parse(textSystemMessage);
+// Shared helper
+function getSystemMessages(obs: Observation, basePrompt: string): [SystemMessage, HumanMessage] {
+    const systemText = fs.readFileSync(path.join(__dirname, "../systemMessage.json"), "utf8");
+    const systemContent = JSON.parse(systemText).content;
 
     const systemMessage = new SystemMessage({
-      content: [
-        { type: "text", text: systemMessageJson.content },
-      ],
+        content: [{ type: "text", text: systemContent }],
     });
 
+    const obsMessage = new HumanMessage({
+        content: [{ type: "text", text: `Observation of the game status: ${obs.toString()}\n` }],
+    });
+
+    return [systemMessage, obsMessage];
+}
+
+// Lock state
+let isImageAgentRunning = false;
+
+// Main function with lock
+export async function askAgentImage(base64Image: string, prompt: string) {
+    if (isImageAgentRunning) {
+        return "Image agent is currently processing another request. Please wait...";
+    }
+
+    isImageAgentRunning = true;
+
+    try {
+        const bot = require("./index").bot;
+        const player = bot.entity.position;
+        const playerCoordinates = { x: player.x, y: player.y, z: player.z };
+        prompt += " Current player coordinates: " + JSON.stringify(playerCoordinates);
+
+        const obs = new Observation(bot);
+        console.log("Observation of the game status: " + obs.toString() + "\n");
+
+        const [systemMessage, obsMessage] = getSystemMessages(obs, prompt);
+
+        const message = new HumanMessage({
+            content: [
+                { type: "text", text: prompt },
+                { type: "image_url", image_url: { url: base64Image } },
+            ],
+        });
+
+        const trimmedMessages = await trimMessages({
+            maxTokens: 10000,
+            tokenCounter: agentModel,
+            strategy: "last",
+            includeSystem: true,
+        }).invoke([systemMessage, obsMessage, message]);
+
+        const response = await agent.invoke({ messages: trimmedMessages }, { configurable: { thread_id: 42 } });
+        return response.messages[response.messages.length - 1].content;
+    } catch (err) {
+        console.error("Error in askAgentImage:", err);
+        return "There was an error processing your request.";
+    } finally {
+        isImageAgentRunning = false;
+    }
+}
+
+// Simpler askAgent version
+export async function askAgent(_imagePath: string, prompt: string) {
+    const bot = require("./index").bot;
+    const player = bot.entity.position;
+    const playerCoordinates = { x: player.x, y: player.y, z: player.z };
+    prompt += " Current player coordinates: " + JSON.stringify(playerCoordinates);
+
+    const obs = new Observation(bot);
     console.log("Observation of the game status: " + obs.toString() + "\n");
-    //system message with the observation
-    const systemMessageWithObservation = new SystemMessage({
-      content: [
-        { type: "text", text: "Observation of the game status: " + obs.toString() + "\n"}
-      ],
+
+    const [systemMessage, obsMessage] = getSystemMessages(obs, prompt);
+
+    const userMessage = new HumanMessage({
+        content: [{ type: "text", text: prompt }],
     });
 
-    const response = await agent.invoke({
-      messages: [systemMessage, systemMessageWithObservation, message],
-      
-    },
-    {configurable: {thread_id: 42}});
+    const response = await agent.invoke(
+        { messages: [systemMessage, obsMessage, userMessage] },
+        { configurable: { thread_id: 42 } }
+    );
 
-    const llmresponse = response.messages[response.messages.length - 1].content;
-    return llmresponse;
+    return response.messages[response.messages.length - 1].content;
 }

@@ -80,12 +80,20 @@ class Observation {
         };
     }
 
+    public getNearestMobs() {
+        const mobs = this.bot.nearestEntity((entity: any) => {
+            return entity.type === 'mob' && entity.mobType !== 'player';
+        });
+        return mobs;
+    }
+
     //to string method to print the current observation (it will have more observations in the future)
     public toString() {
         return `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(1, 1, 1))}\n` +
             `Surrounding blocks with names (less detail): ${Array.from(this.getSurroundingBlocksWithNames(5, 5, 5)).join(", ")}\n` +
             `Inventory items: ${Array.from(this.getInventoryItems()).join(", ")}\n` +
-            `Current bot position: ${JSON.stringify(this.getCurrentBotPosition())}\n`;
+            `Current bot position: ${JSON.stringify(this.getCurrentBotPosition())}\n`+ 
+            `Nearest mob: ${JSON.stringify(this.getNearestMobs())}\n`;
     }
 }
 

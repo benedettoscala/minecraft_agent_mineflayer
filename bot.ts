@@ -57,7 +57,11 @@ export function connect(port = process.env.port) {
 
         mineflayerViewer(bot, { port: 9333, firstPerson: true }) // crea il viewer
     
-        bot.viewer.drawText('greeting', 'Ciao mondo!', { x: 244, y: 65, z: 501 }, 0xffff00, 2)
+        //bot.viewer.drawText('greeting', 'Ciao mondo!', { x: 244, y: 65, z: 501 }, 0xffff00, 2)
+        bot.loadPlugin(require('mineflayer-pathfinder').pathfinder);
+        bot.loadPlugin(require('mineflayer-collectblock').plugin);
+        bot.loadPlugin(require('mineflayer-pvp').plugin);
+        
     })
 
     bot.on('chat', async (username:string, message:string) => {
@@ -74,73 +78,26 @@ export function connect(port = process.env.port) {
             
 
             messageLower = messageLower.replace("donna", "");
-            messageLower = "username (who is speaking): " + username + " " + messageLower;
+            messageLower = "the player named " + username + " asked: " + messageLower;
 
             const base64image = await makeScreenshot();
             
-
-            askAgentImage(base64image, messageLower).then((response) => {
-                bot.chat(response);
-            }).catch((error) => {
-                console.error("Error:", error);
-                bot.chat("An error occurred while processing your request.");
-            });
+            if (base64image) {
+                askAgentImage(base64image, messageLower).then((response) => {
+                    bot.chat(response);
+                }).catch((error) => {
+                    console.error("Error:", error);
+                    bot.chat("An error occurred while processing your request.");
+                });
+            } else {
+                bot.chat("Unable to capture a screenshot. Please try again.");
+            }
         }
     });
 
-    bot.loadPlugin(require('mineflayer-pathfinder').pathfinder);
-    bot.loadPlugin(require('mineflayer-collectblock').plugin);
+    
+    const minecraftHawkEye = require('minecrafthawkeye');
+    bot.loadPlugin(minecraftHawkEye);
 
     return bot;
 }
-
-type CharMap = Record<string, string[]>
-
-/**
- * Mappa base per lettere pixelate 5x5
- */
-const charMap: CharMap = {
-  'A': [
-    ' 1 ',
-    '1 1',
-    '111',
-    '1 1',
-    '1 1'
-  ],
-  // Aggiungi altre lettere se vuoi
-}
-import { Vec3 } from 'vec3'
-/**
- * Disegna un testo 3D con punti usando drawPoints
- */
-function drawText(
-  bot: Bot,
-  text: string,
-  basePosition: Vec3,
-  idPrefix = 'text',
-  color = 0x00ff00,
-  size = 5
-): void {
-  const points: Vec3[] = []
-  const spacing = 6
-
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i].toUpperCase()
-    const glyph = charMap[char]
-    if (!glyph) continue
-
-    for (let y = 0; y < glyph.length; y++) {
-      for (let x = 0; x < glyph[y].length; x++) {
-        if (glyph[y][x] === '1') {
-          const point = basePosition.offset(x + i * spacing, -y, 0)
-          points.push(point)
-        }
-      }
-    }
-  }
-
-  // @ts-ignore: drawPoints is dynamically added by prismarine-viewer
-  bot.viewer.drawPoints(`${idPrefix}_${text}`, points, color, size)
-}
-
-
