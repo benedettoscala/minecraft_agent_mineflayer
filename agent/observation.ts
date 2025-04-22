@@ -80,20 +80,74 @@ class Observation {
         };
     }
 
-    public getNearestMobs() {
-        const mobs = this.bot.nearestEntity((entity: any) => {
-            return entity.type === 'mob' && entity.mobType !== 'player';
-        });
-        return mobs;
+    public getNearbyLivingEntities(maxDistance = 48) {
+        const livingEntities: Record<string, any[]> = {};
+      
+        for (const id in this.bot.entities) {
+          const entity = this.bot.entities[id];
+          if (
+            entity.type === "hostile" || // animali e mob ostili
+            entity.type === "animal"||
+            entity.type === "player" // opzionale: per includere player
+          ) {
+            const distance = entity.position.distanceTo(this.bot.entity.position);
+            if (distance <= maxDistance) {
+              if (!livingEntities[entity.name]) {
+                livingEntities[entity.name] = [];
+              }
+              livingEntities[entity.name].push({ entity, distance });
+            }
+          }
+        }
+      
+        // Ordina ogni array per distanza
+        for (const name in livingEntities) {
+          livingEntities[name].sort((a, b) => a.distance - b.distance);
+        }
+      
+        return livingEntities;
+      }
+
+
+    public getNearbyEntityNamesAndDistance(): string[] {
+        const nearbyEntities = this.getNearbyLivingEntities(10);
+        const entityNames: string[] = [];
+
+        for (const name in nearbyEntities) {
+            const entities = nearbyEntities[name];
+            for (const entity of entities) {
+                if (name === "player" && entity.distance == 0) {
+                    continue; // Skip the bot itself
+                }
+                entityNames.push(`${name} (${entity.distance.toFixed(2)} blocks)`);
+            }
+        }
+
+        return entityNames;
+    }
+    
+    public getHealthAndHunger() {
+        const health = this.bot.health;
+        const maxHealth = this.bot.entity.maxHealth;
+        const hunger = this.bot.food;
+        const maxHunger = 20; // Max hunger in Minecraft
+
+        return {
+            health: health,
+            maxHealth: maxHealth,
+            hunger: hunger,
+            maxHunger: maxHunger
+        };
     }
 
     //to string method to print the current observation (it will have more observations in the future)
     public toString() {
-        return `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(1, 1, 1))}\n` +
+        return `Current health and hunger: ${this.getHealthAndHunger().health}/${this.getHealthAndHunger().maxHealth}\n` +
+            `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(1, 1, 1))}\n` +
             `Surrounding blocks with names (less detail): ${Array.from(this.getSurroundingBlocksWithNames(5, 5, 5)).join(", ")}\n` +
             `Inventory items: ${Array.from(this.getInventoryItems()).join(", ")}\n` +
             `Current bot position: ${JSON.stringify(this.getCurrentBotPosition())}\n`+ 
-            `Nearest mob: ${JSON.stringify(this.getNearestMobs())}\n`;
+            `Nearby living entities: ${JSON.stringify(this.getNearbyEntityNamesAndDistance())}\n`;
     }
 }
 

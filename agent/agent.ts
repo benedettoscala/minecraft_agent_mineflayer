@@ -6,13 +6,13 @@ import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import path from "path";
 import fs from "fs";
-import { goToPlayer } from "./tools/followPlayer";
-import { mineBlockTool } from "./tools/mineBlock";
-import { placeItems } from "./tools/placeItem";
+import { goToPlayer } from "../tools/followPlayer";
+import { mineBlockTool } from "../tools/mineBlock";
+import { placeItems } from "../tools/placeItem";
 import { Observation } from "./observation";
-import { executeCustomAction } from "./tools/executeCustomAction";
-import { craftItem } from "./tools/craftItem";
-import { killMob } from "./tools/killmob";
+import { executeCustomAction } from "../tools/executeCustomAction";
+import { craftItem } from "../tools/craftItem";
+import { killMob } from "../tools/killmob";
 
 // Define tool: example adder
 const adderSchema = z.object({ a: z.number(), b: z.number() });
@@ -38,7 +38,7 @@ const agent = createReactAgent({
 
 // Shared helper
 function getSystemMessages(obs: Observation, basePrompt: string): [SystemMessage, HumanMessage] {
-    const systemText = fs.readFileSync(path.join(__dirname, "../systemMessage.json"), "utf8");
+    const systemText = fs.readFileSync(path.join(__dirname, "../../agent/systemMessage.json"), "utf8");
     const systemContent = JSON.parse(systemText).content;
 
     const systemMessage = new SystemMessage({
@@ -64,7 +64,7 @@ export async function askAgentImage(base64Image: string, prompt: string) {
     isImageAgentRunning = true;
 
     try {
-        const bot = require("./index").bot;
+        const bot = require("../index").bot;
         const player = bot.entity.position;
         const playerCoordinates = { x: player.x, y: player.y, z: player.z };
         prompt += " Current player coordinates: " + JSON.stringify(playerCoordinates);
@@ -100,24 +100,31 @@ export async function askAgentImage(base64Image: string, prompt: string) {
 
 // Simpler askAgent version
 export async function askAgent(_imagePath: string, prompt: string) {
-    const bot = require("./index").bot;
-    const player = bot.entity.position;
-    const playerCoordinates = { x: player.x, y: player.y, z: player.z };
-    prompt += " Current player coordinates: " + JSON.stringify(playerCoordinates);
+  const bot = require("../index").bot;
+  const player = bot.entity.position;
+  const playerCoordinates = { x: player.x, y: player.y, z: player.z };
+  prompt += " Current player coordinates: " + JSON.stringify(playerCoordinates);
 
-    const obs = new Observation(bot);
-    console.log("Observation of the game status: " + obs.toString() + "\n");
+  const obs = new Observation(bot);
+  console.log("Observation of the game status: " + obs.toString() + "\n");
 
-    const [systemMessage, obsMessage] = getSystemMessages(obs, prompt);
+  const [systemMessage, obsMessage] = getSystemMessages(obs, prompt);
 
-    const userMessage = new HumanMessage({
-        content: [{ type: "text", text: prompt }],
-    });
+  const userMessage = new HumanMessage({
+      content: [{ type: "text", text: prompt }],
+  });
 
-    const response = await agent.invoke(
-        { messages: [systemMessage, obsMessage, userMessage] },
-        { configurable: { thread_id: 42 } }
-    );
+  const trimmedMessages = await trimMessages({
+      maxTokens: 10000,
+      tokenCounter: agentModel,
+      strategy: "last",
+      includeSystem: true,
+  }).invoke([systemMessage, obsMessage, userMessage]);
 
-    return response.messages[response.messages.length - 1].content;
+  const response = await agent.invoke(
+      { messages: trimmedMessages },
+      { configurable: { thread_id: 42 } }
+  );
+
+  return response.messages[response.messages.length - 1].content;
 }

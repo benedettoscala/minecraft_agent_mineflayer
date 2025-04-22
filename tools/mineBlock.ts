@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { bot } from "../index"; // Assicurati che il bot sia correttamente esportato da index.ts
+const bot = require("../index").bot; // Ensure './index' exists and exports 'bot'
 const collectBlock = require("mineflayer-collectblock").plugin;
 const toolPlugin = require("mineflayer-tool").plugin;
 
 const mineBlockTool = tool(
   async (input): Promise<string> => {
+    const bot = require("../index").bot; // Ensure './index' exists and exports 'bot'
     const mcData = require("minecraft-data")(bot.version);
 
     if (mcData.blocksByName[input.blockName] === undefined) {

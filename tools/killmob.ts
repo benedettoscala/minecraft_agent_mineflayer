@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { bot } from "../index"; // Assicurati che questo esporti 'bot'
+
 import { waitForMobRemoved, waitForMobShot } from "../utils/mobutils";
 const { GoalNear } = require("mineflayer-pathfinder").goals;
 const { Movements } = require("mineflayer-pathfinder");
+const bot = require("../index").bot; // Ensure './index' exists and exports 'bot'
 
 let _killMobFailCount = 0;
 
@@ -18,7 +19,9 @@ const weaponsForShooting = [
 ];
 
 const killMob = tool(
-  async ({ mobName, timeout }): Promise<string> => {
+  async ({ mobName, timeout, count }): Promise<string> => {
+    const bot = require("../index").bot; // Ensure './index' exists and exports 'bot'
+    
     if (typeof mobName !== "string") {
       throw new Error(`mobName must be a string`);
     }
@@ -27,39 +30,61 @@ const killMob = tool(
       throw new Error(`timeout must be a number`);
     }
 
-    const mainHandItem = bot.inventory.slots[bot.getEquipmentDestSlot("hand")];
+    if (typeof count !== "number" || count < 1) {
+      throw new Error(`count must be a number >= 1`);
+    }
 
-    const entity = bot.nearestEntity(
-      (entity : any) =>
-        entity.name === mobName &&
-        entity.position.distanceTo(bot.entity.position) < 48
-    );
+    let killed = 0;
 
-    if (!entity) {
-      _killMobFailCount++;
-      if (_killMobFailCount > 10) {
-        throw new Error(
-          `killMob failed too many times. Explore before calling killMob.`
+    while (killed < count) {
+      let mainHandItem = bot.inventory.slots[bot.getEquipmentDestSlot("hand")];
+
+      // Equipaggia spada se non hai un'arma a distanza
+      if (!mainHandItem || !weaponsForShooting.includes(mainHandItem.name)) {
+        const sword = bot.inventory.items().find((item: { name: string | string[]; }) =>
+          item.name.includes("sword")
         );
+
+        if (sword) {
+          await bot.equip(sword, "hand");
+          mainHandItem = sword;
+        }
       }
-      return `No ${mobName} nearby, please explore first.`;
+
+      const entity = bot.nearestEntity(
+        (entity: any) =>
+          entity.name === mobName &&
+          entity.position.distanceTo(bot.entity.position) < 48
+      );
+
+      if (!entity) {
+        _killMobFailCount++;
+        if (_killMobFailCount > 10) {
+          throw new Error(
+            `killMob failed too many times. Explore before calling killMob.`
+          );
+        }
+        return `No ${mobName} nearby, please explore first. (${killed}/${count} killed)`;
+      }
+
+      let droppedItem;
+      if (mainHandItem && weaponsForShooting.includes(mainHandItem.name)) {
+        bot.hawkEye.autoAttack(entity, mainHandItem.name);
+        droppedItem = await waitForMobShot(bot, entity, timeout);
+      } else {
+        await bot.pvp.attack(entity);
+        droppedItem = await waitForMobRemoved(bot, entity, timeout);
+      }
+
+      if (droppedItem) {
+        await bot.collectBlock.collect(droppedItem, { ignoreNoPath: true });
+      }
+
+      killed++;
     }
 
-    let droppedItem;
-    if (mainHandItem && weaponsForShooting.includes(mainHandItem.name)) {
-      bot.hawkEye.autoAttack(entity, mainHandItem.name);
-      droppedItem = await waitForMobShot(bot, entity, timeout);
-    } else {
-      await bot.pvp.attack(entity);
-      droppedItem = await waitForMobRemoved(bot, entity, timeout);
-    }
-
-    if (droppedItem) {
-      await bot.collectBlock.collect(droppedItem, { ignoreNoPath: true });
-    }
-
-    bot.save(`${mobName}_killed`);
-    return `Successfully killed a ${mobName}`;
+    bot.save(`${mobName}_${count}_killed`);
+    return `Successfully killed ${count} ${mobName}${count > 1 ? "s" : ""}`;
   },
   {
     name: "killMob",
@@ -67,6 +92,7 @@ const killMob = tool(
     schema: z.object({
       mobName: z.string().describe("The name of the mob to kill (e.g., zombie, skeleton)"),
       timeout: z.number().optional().default(300).describe("Optional timeout for waiting after attack"),
+      count: z.number().optional().default(1).describe("The number of mobs to kill"),
     }),
   }
 );

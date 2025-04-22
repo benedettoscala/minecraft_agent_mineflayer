@@ -1,16 +1,17 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { bot } from "../index";
 import { Vec3 } from "vec3";
 import { Movements } from "mineflayer-pathfinder";
 
 const { GoalPlaceBlock } = require("mineflayer-pathfinder").goals;
+const bot = require("../index").bot; // Ensure './index' exists and exports 'bot'
 
 let _placeItemFailCount = 0;
 
 // Create a lock
 const placeItems = tool(
   async (input): Promise<string> => {
+    const bot = require("../index").bot; // Ensure './index' exists and exports 'bot'
     const mcData = require("minecraft-data")(bot.version);
 
     const { items } = input;
