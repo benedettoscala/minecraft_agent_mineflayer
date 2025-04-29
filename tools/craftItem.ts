@@ -50,9 +50,10 @@ const craftItem = tool(
         return `Failed to craft ${name} ${count} times`;
       }
     } else {
-      failedCraftFeedback(bot, name, itemByName, craftingTable); // ✅ Reinserita qui
+      
       _craftItemFailCount++;
       if (_craftItemFailCount > 10) {
+        failedCraftFeedback(bot, name, itemByName, craftingTable); // ✅ Reinserita qui
         throw new Error(
           "craftItem failed too many times, check chat log to see what happened"
         );

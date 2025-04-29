@@ -14,7 +14,7 @@ import { executeCustomAction } from "../tools/executeCustomAction";
 import { craftItem } from "../tools/craftItem";
 import { killMob } from "../tools/killmob";
 import { smeltItem } from "../tools/smeltItem";
-import app from "./customaAgent";
+import app from "./customAgent";
 
 // Define tool: example adder
 const adderSchema = z.object({ a: z.number(), b: z.number() });
