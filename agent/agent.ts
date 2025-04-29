@@ -13,6 +13,8 @@ import { Observation } from "./observation";
 import { executeCustomAction } from "../tools/executeCustomAction";
 import { craftItem } from "../tools/craftItem";
 import { killMob } from "../tools/killmob";
+import { smeltItem } from "../tools/smeltItem";
+import app from "./customaAgent";
 
 // Define tool: example adder
 const adderSchema = z.object({ a: z.number(), b: z.number() });
@@ -26,7 +28,7 @@ const adderTool = tool(async (input) => {
 });
 
 // LLM agent
-const agentTools = [adderTool, goToPlayer, mineBlockTool, placeItems, craftItem, killMob, executeCustomAction];
+const agentTools = [adderTool, goToPlayer, mineBlockTool, placeItems, craftItem, killMob, smeltItem, executeCustomAction];
 const agentModel = new ChatOpenAI({ model: "gpt-4o", temperature: 0.7 });
 const agentCheckpointer = new MemorySaver();
 
@@ -88,7 +90,7 @@ export async function askAgentImage(base64Image: string, prompt: string) {
             includeSystem: true,
         }).invoke([systemMessage, obsMessage, message]);
 
-        const response = await agent.invoke({ messages: trimmedMessages }, { configurable: { thread_id: 42 } });
+        const response = await app.invoke({ messages: trimmedMessages }, { configurable: { thread_id: 42 } });
         return response.messages[response.messages.length - 1].content;
     } catch (err) {
         console.error("Error in askAgentImage:", err);
@@ -121,7 +123,7 @@ export async function askAgent(_imagePath: string, prompt: string) {
       includeSystem: true,
   }).invoke([systemMessage, obsMessage, userMessage]);
 
-  const response = await agent.invoke(
+  const response = await app.invoke(
       { messages: trimmedMessages },
       { configurable: { thread_id: 42 } }
   );

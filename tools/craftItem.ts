@@ -11,7 +11,7 @@ const craftItem = tool(
     
     const bot = require("../index").bot;
     const mcData = require("minecraft-data")(bot.version); // Assicurati che bot.version sia disponibile
-    
+
     if (typeof name !== "string") {
       throw new Error("name for craftItem must be a string");
     }
