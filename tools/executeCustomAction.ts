@@ -2,33 +2,51 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 const bot = require("../index").bot; // Ensure './index' exists and exports 'bot'
 
+import { getLastEvalError, setLastEvalError } from '../utils/errorStore';
+
 const executeCustomAction = tool(
     async (input): Promise<string> => {
         try {
-            console.log(input.code);
+            setLastEvalError(null); // resetta prima dell’eval
+
             const codeToEval = `
-                const { vec3 } = require("vec3");
-                const bot = require("../index").bot;
-                const mcData = require("minecraft-data")(bot.version);
-                ${input.code}
+                (async () => {
+                    const { vec3 } = require("vec3");
+                    const bot = require("../index").bot;
+                    const mcData = require("minecraft-data")(bot.version);
+
+                    try {
+                        ${input.code}
+                    } catch (err) {
+                        return 'Errore nel codice utente (catch): ' + (err?.message || err);
+                    }
+                })()
             `;
-            const result = await eval(`(() => { ${codeToEval} })()`);
+
+            const result = await eval(codeToEval);
+            
+            //aspetta 1 secondo per dare tempo al codice di eseguire eventuali errori
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            const errorFromGlobals = getLastEvalError();
+            if (errorFromGlobals) {
+                return `Errore nell'esecuzione: ${errorFromGlobals}`;
+            }
+
             return typeof result === "string" ? result : JSON.stringify(result);
         } catch (error: any) {
-            console.log(error.stack);
-            return `Error executing custom action: ${error.stack}`;
+            return `Errore interno nell'esecuzione del tool: ${error.stack}`;
         }
     },
     {
         name: "executeCustomAction",
-        description: `Use this tool to execute custom JavaScript code in the game using the Mineflayer API. 
-This is useful for performing specific actions that are not supported by the predefined tools. 
-Provide the exact code to be executed. 
-**Make sure your code returns a string or a description of what the bot did**, otherwise no feedback will be shown.`,
+        description: `Esegue codice JS Mineflayer personalizzato. Il tuo codice è avvolto in un blocco try/catch.
+Gli errori globali (es. assert, promise non gestite) vengono intercettati automaticamente e restituiti.`,
         schema: z.object({
-            code: z.string().describe("The code to execute. It must return a string describing the action taken."),
+            code: z.string().describe("Codice JS da eseguire. Usa `return '...'` per descrivere l'azione."),
         }),
     }
 );
+
 
 export { executeCustomAction };

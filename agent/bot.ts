@@ -90,12 +90,30 @@ export function connect(port = Number(process.env.PORT) || 25565): Bot {
 
       await bot.lookAt(player.position.offset(0, 2, 0), true);
 
-      const prompt = `The player named ${username} asked: ${messageLower.replace("donna", "").trim()}`;
+      const prompt = `The player named ${username} asked: <PROMPT> ${messageLower.replace("donna", "").trim()} </PROMPT>`;
       const base64Image = await makeScreenshot();
 
       if (base64Image) {
         try {
           const response = await askAgent(base64Image, prompt);
+          //se il testo contiene <FAIL></FAIL>, elimina <FAIL></FAIL> e invia il messaggio
+          const failRegex = /<FAIL>(.*?)<\/FAIL>/g;
+          const failMatch = response.toString().match(failRegex);
+          if (failMatch) {
+            const failMessage = failMatch[0].replace(/<FAIL>|<\/FAIL>/g, "").trim();
+            bot.chat(failMessage);
+            return;
+          }
+
+          //SE IL TESTO CONTINE <TASK_COMPLETED></TASK_COMPLETED>, elimina <TASK_COMPLETED></TASK_COMPLETED> e invia il messaggio
+          const taskCompletedRegex = /<TASK_COMPLETED>(.*?)<\/TASK_COMPLETED>/g;
+          const taskCompletedMatch = response.toString().match(taskCompletedRegex);
+          if (taskCompletedMatch) {
+            const taskCompletedMessage = taskCompletedMatch[0].replace(/<TASK_COMPLETED>|<\/TASK_COMPLETED>/g, "").trim();
+            bot.chat(taskCompletedMessage);
+            return;
+          }
+
           bot.chat(response.toString());
         } catch (error) {
           console.error("Error:", error);

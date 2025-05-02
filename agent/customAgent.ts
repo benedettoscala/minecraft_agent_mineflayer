@@ -1,5 +1,3 @@
-
-
 import { TavilySearchResults } from "@langchain/community/tools/tavily_search";
 import { mineBlockTool } from "../tools/mineBlock";
 import { placeItems } from "../tools/placeItem";
@@ -16,15 +14,33 @@ import { StateGraph, MessagesAnnotation } from "@langchain/langgraph";
 import { checkItemInsideChestTool, depositItemIntoChestTool, getItemFromChestTool } from "../tools/useChest";
 
 // Define the tools for the agent to use
-const tools = [ goToPlayer, mineBlockTool, placeItems, craftItem, killMob, smeltItem, executeCustomAction, checkItemInsideChestTool, depositItemIntoChestTool, getItemFromChestTool];
+const tools = [
+  goToPlayer,
+  mineBlockTool,
+  placeItems,
+  craftItem,
+  killMob,
+  smeltItem,
+  executeCustomAction,
+  checkItemInsideChestTool,
+  depositItemIntoChestTool,
+  getItemFromChestTool,
+];
 const toolNode = new ToolNode(tools);
 
-// Create a model and give it access to the tools
+// LLM principale
 const model = new ChatOpenAI({
   model: "gpt-4o",
   temperature: 0,
 }).bindTools(tools);
 
+// LLM secondario per generare il task dal messaggio utente
+const taskCreatorModel = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 0.2,
+});
+
+// --- Helpers ---
 function extractTask(messages: (AIMessage | HumanMessage)[]): string | null {
   for (const msg of messages) {
     const content = "content" in msg ? msg.content : "";
@@ -45,7 +61,6 @@ function extractMessage(messages: (AIMessage | HumanMessage)[]): string | null {
     }
   }
   return null;
-
 }
 
 function isTaskCompleteOrFailed(messages: (AIMessage | HumanMessage)[]): boolean {
@@ -53,54 +68,88 @@ function isTaskCompleteOrFailed(messages: (AIMessage | HumanMessage)[]): boolean
   if (!lastAIMessage) return false;
 
   const task = extractTask(messages);
-  if (!task) return true; // No task defined
+  if (!task) return true;
 
   const responseText = typeof lastAIMessage.content === "string" ? lastAIMessage.content.toLowerCase() : "";
-
-  return responseText.includes("task completed") || responseText.includes("<fail>");
+  return responseText.includes("<task_completed>") || responseText.includes("<fail>");
 }
 
 function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
   const lastMessage = messages[messages.length - 1] as AIMessage;
+  const penultimateMessage = messages[messages.length - 2] as AIMessage;
 
-  // If tool calls are present, continue with tools
+  if (lastMessage._getType() === "ai" && penultimateMessage._getType() === "ai") {
+    if (lastMessage.content === penultimateMessage.content) {
+      return "__end__";
+    }
+  }
+
   if (lastMessage.tool_calls?.length) {
     return "tools";
   }
 
-  // If a task exists and it's not complete, continue
   const task = extractTask(messages);
   if (task && !isTaskCompleteOrFailed(messages)) {
     return "agent";
   }
 
-  const bot = require("../index").bot; // Ensure './index' exists and exports 'bot'
+  const bot = require("../index").bot;
   const message = extractMessage(messages);
-  if(message) {
+  if (message) {
     bot.chat(message);
   }
-  // Otherwise, we're done
+
   return "__end__";
 }
 
+// --- Nodes ---
+async function createTask(state: typeof MessagesAnnotation.State) {
+  const firstHumanMessage = state.messages.find((msg) => msg._getType() === "human") as HumanMessage | undefined;
+  if (!firstHumanMessage) return { messages: [] };
 
-// Define the function that calls the model
+  let promptUser = null;
+  // prendi il prompt contenuto in PROMPT, cerca in tutti i messagi
+  for (const msg of state.messages) {
+    const message = typeof msg.content === "object" && Array.isArray(msg.content) && "text" in msg.content[0] ? msg.content[0].text : "";
+    const match = typeof message === "string" ? message.match(/<PROMPT>(.*?)<\/PROMPT>/) : null;
+    if (match) {
+      promptUser = match[1];
+      break;
+    }
+  }
+
+  const prompt = [
+    new HumanMessage({
+      content: `Given this user input, generate:
+
+A task wrapped in the <Task>...</Task> tags.
+
+Example:
+<Task>Collect 5 pieces of iron</Task>
+
+User input ${promptUser}`,
+    }),
+  ];
+
+  const taskMessage = await taskCreatorModel.invoke(prompt);
+  return { messages: [taskMessage] };
+}
+
 async function callModel(state: typeof MessagesAnnotation.State) {
   const response = await model.invoke(state.messages);
-
-  // We return a list, because this will get added to the existing list
   return { messages: [response] };
 }
 
-// Define a new graph
+// --- Workflow ---
 const workflow = new StateGraph(MessagesAnnotation)
+  .addNode("createTask", createTask)
   .addNode("agent", callModel)
-  .addEdge("__start__", "agent") // __start__ is a special name for the entrypoint
   .addNode("tools", toolNode)
+  .addEdge("__start__", "createTask")
+  .addEdge("createTask", "agent")
   .addEdge("tools", "agent")
   .addConditionalEdges("agent", shouldContinue);
 
-// Finally, we compile it into a LangChain Runnable.
+// --- Compila e esporta ---
 const app = workflow.compile();
-
 export default app;
