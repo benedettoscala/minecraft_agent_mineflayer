@@ -44,46 +44,70 @@ async function closeChest(bot: any, chestBlock: any): Promise<void> {
 // Tool: getItemFromChest
 //
 const getItemFromChestTool = tool(
-    async ({ items }: { items: { name: string; quantity: number }[] }) => {
-      const bot = require("../index").bot;
-      const mcData = require("minecraft-data")(bot.version);
-  
-      try {
-        const chestBlock = await findNearestChest(bot);
-        const chest = await bot.openContainer(chestBlock);
-  
-        for (const { name, quantity } of items) {
-          if (quantity <= 0) continue;
-  
-          const itemDef = mcData.itemsByName[name];
-          if (!itemDef) return `Item ${name} is not valid.`;
-  
-          const item = chest.findContainerItem(itemDef.id);
-          if (!item) return `${name} not found in chest.`;
-  
-          await chest.withdraw(item.type, null, quantity);
+  async ({ items }: { items: { name: string; quantity: number }[] }) => {
+    const bot = require("../index").bot;
+    const mcData = require("minecraft-data")(bot.version);
+
+    try {
+      const chestBlock = await findNearestChest(bot);
+      const chest = await bot.openContainer(chestBlock);
+
+      // Debug: stampa contenuto chest
+      console.log(
+        "Chest contains:",
+        chest.containerItems().map(
+          (          i: { count: any; name: any; type: any; metadata: any; }) => `${i.count}x ${i.name} (id: ${i.type}, meta: ${i.metadata})`
+        ).join(", ")
+      );
+
+      const results: string[] = [];
+
+      for (const { name, quantity } of items) {
+        if (quantity <= 0) continue;
+
+        const itemDef = mcData.itemsByName[name];
+        if (!itemDef) {
+          results.push(`Item ${name} is not valid.`);
+          continue;
         }
-  
-        await closeChest(bot, chestBlock);
-        return `Successfully withdrew items: ${items.map(i => `${i.quantity}x ${i.name}`).join(", ")}`;
-      } catch (err: any) {
-        console.error(err.stack);
-        return `Error: ${err.message}`;
+
+        const matchingItem = chest.containerItems().find((i: { name: string; }) => i.name === name);
+        if (!matchingItem) {
+          results.push(`${name} not found in chest.`);
+          continue;
+        }
+
+        const emptySlots = bot.inventory.emptySlotCount();
+        if (emptySlots === 0) {
+          results.push(`Cannot withdraw ${name}: bot inventory is full.`);
+          continue;
+        }
+
+        await chest.withdraw(matchingItem.type, matchingItem.metadata, quantity);
+        results.push(`Withdrew ${quantity}x ${name}`);
       }
-    },
-    {
-      name: "getItemFromNearestChest",
-      description: "Withdraw specific items from the nearest chest",
-      schema: z.object({
-        items: z.array(
-          z.object({
-            name: z.string().describe("The name of the item to withdraw"),
-            quantity: z.number().min(1).describe("The quantity to withdraw"),
-          })
-        ),
-      }),
+
+      await closeChest(bot, chestBlock);
+      return results.join("\n");
+    } catch (err: any) {
+      console.error(err.stack);
+      return `Error: ${err.message}`;
     }
-  );
+  },
+  {
+    name: "getItemFromNearestChest",
+    description: "Withdraw specific items from the nearest chest",
+    schema: z.object({
+      items: z.array(
+        z.object({
+          name: z.string().describe("The name of the item to withdraw"),
+          quantity: z.number().min(1).describe("The quantity to withdraw"),
+        })
+      ),
+    }),
+  }
+);
+
 
 //
 // Tool: depositItemIntoChest
