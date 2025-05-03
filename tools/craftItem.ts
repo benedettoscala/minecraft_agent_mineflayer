@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
+import { Observation } from "../agent/observation";
 const { GoalLookAtBlock } = require("mineflayer-pathfinder").goals;
 const Item = require('prismarine-item')('1.8')
 const { failedCraftFeedback } = require("../utils/craftHelper"); // Assicurati che esista questa funzione
@@ -51,13 +52,16 @@ const craftItem = tool(
 
     if (recipe) {
       bot.chat(`I can make ${name}`);
+      let attemptedCount = count;
+
       try {
-        await bot.craft(recipe, count, craftingTable);
-        bot.chat(`I did the recipe for ${name} ${count} times`);
-        return `Successfully crafted ${count} ${name}${count > 1 ? "s" : ""}`;
+        await bot.craft(recipe, attemptedCount, craftingTable);
+        bot.chat(`I did the recipe for ${name} ${attemptedCount} times`);
+        return `Successfully crafted ${attemptedCount} ${name}${attemptedCount > 1 ? "s" : ""}`;
+        
       } catch (err) {
-        bot.chat(`I cannot do the recipe for ${name} ${count} times`);
-        return `Failed to craft ${name} ${count} times`;
+        const obs = new Observation(bot);
+        return `You crafted some ${name} but not all of them in the count. In your inventory, there is now ${obs.getInventoryItems()}`;
       }
     } else {
       
@@ -68,7 +72,7 @@ const craftItem = tool(
           "craftItem failed too many times, check chat log to see what happened"
         );
       }
-      return "I cannot make " + name + ", but I couldn't determine why. Maybe there are some missing ingredients?";
+      return failedCraftFeedback(bot, name, itemByName, craftingTable);
     }
   },
   {
@@ -76,7 +80,7 @@ const craftItem = tool(
     description: "Crafts a given item using available resources and a crafting table if needed",
     schema: z.object({
       name: z.string().describe("The name of the item to craft (e.g., wooden_sword, furnace)"),
-      count: z.number().optional().default(1).describe("The number of items to craft"),
+      count: z.number().optional().default(1).describe("The number of items to craft."),
     }),
   }
 );

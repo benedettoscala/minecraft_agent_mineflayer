@@ -10,7 +10,7 @@ export function failedCraftFeedback(bot: Bot, name: string, item: Item, crafting
   if (!itemMeta) {
     throw new Error(`No item named ${item.name}`);
   }
-  const recipes = bot.recipesAll(item.type, itemMeta, craftingTable);
+  const recipes = bot.recipesAll(itemMeta, null, craftingTable);
 
   if (!recipes.length) {
     throw new Error(`No crafting table nearby`);

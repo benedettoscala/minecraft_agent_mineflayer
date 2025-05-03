@@ -11,7 +11,8 @@ import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { StateGraph, MessagesAnnotation, MemorySaver } from "@langchain/langgraph";
-import { checkItemInsideChestTool, depositItemIntoChestTool, getItemFromChestTool } from "../tools/useChest";
+import { checkItemInsideChestTool, depositItemIntoChestTool, getItemFromChestTool } from "../tools/useChest"
+import { checkObservation } from "../tools/checkObservation";
 
 // Define the tools for the agent to use
 const tools = [
@@ -25,13 +26,14 @@ const tools = [
   checkItemInsideChestTool,
   depositItemIntoChestTool,
   getItemFromChestTool,
+  checkObservation,
 ];
 const toolNode = new ToolNode(tools);
 
 // LLM principale
 const model = new ChatOpenAI({
   model: "gpt-4o",
-  temperature: 0,
+  temperature: 0.2,
 }).bindTools(tools);
 
 // LLM secondario per generare il task dal messaggio utente
@@ -118,6 +120,9 @@ async function createTask(state: typeof MessagesAnnotation.State) {
     }
   }
 
+  const bot = require("../index").bot;
+  const observation = new Observation(bot);
+  const observationData = await observation.toString();
   const prompt = [
     new HumanMessage({
       content: `Given this user input, generate:
@@ -139,7 +144,7 @@ Example:
 
 
 User input ${promptUser},
-User Observation ${firstHumanMessage},`,
+User Observation ${observationData},`,
     }),
   ];
 
