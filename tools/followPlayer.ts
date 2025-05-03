@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { bot } from "../index"; // Ensure './index' exists and exports 'bot'
 const { GoalNear} = require('mineflayer-pathfinder').goals
 const { Movements } = require('mineflayer-pathfinder');
+const bot = require("../index").bot; // Ensure './index' exists and exports 'bot'
 
 
 const goToPlayer = tool(
     async (input): Promise<string> => {
+        const bot = require("../index").bot; // Ensure './index' exists and exports 'bot'
         const mcData = require("minecraft-data")(bot.version);
         const player = bot.players[input.username]?.entity;
         if (!player) {

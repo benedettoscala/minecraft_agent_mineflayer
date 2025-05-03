@@ -1,81 +1,86 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
-import { bot } from "../index";
+import { Observation } from "../agent/observation";
 const { GoalLookAtBlock } = require("mineflayer-pathfinder").goals;
-const { Recipe } = require("prismarine-recipe");
+const Item = require('prismarine-item')('1.8')
+const { failedCraftFeedback } = require("../utils/craftHelper"); // Assicurati che esista questa funzione
 
 let _craftItemFailCount = 0;
 
 const craftItem = tool(
-  async (input): Promise<string> => {
-    const mcData = require("minecraft-data")(bot.version);
+  async ({ name, count }): Promise<string> => {
+    
+    const bot = require("../index").bot;
+    const mcData = require("minecraft-data")(bot.version); // Assicurati che bot.version sia disponibile
 
-    const { itemName, count = 1 } = input;
-
-    if (typeof itemName !== "string") {
-      return `Item name must be a string.`;
+    if (typeof name !== "string") {
+      throw new Error("name for craftItem must be a string");
+    }
+    if (typeof count !== "number" || count < 1) {
+      throw new Error("count for craftItem must be a number >= 1");
     }
 
-    if (typeof count !== "number") {
-      return `Count must be a number.`;
-    }
-
-    const itemByName = mcData.itemsByName[itemName];
+    const itemByName = mcData.itemsByName[name];
     if (!itemByName) {
-      return `No item named ${itemName}`;
+      throw new Error(`No item named ${name}`);
     }
 
-    // 1. Get all available recipes (with or without crafting table)
-    const recipes = bot.recipesFor(itemByName.id, null, count);
-    if (!recipes || recipes.length === 0) {
-      return `I cannot craft ${itemName} from the available materials.`;
-    }
-
-    // 2. Prefer a recipe that doesn't require crafting table
-    let recipe: any = recipes.find((r: any) => r.requiresCraftingTable === false);
-
-    // 3. If none is available, pick the first that requires a table
-    if (!recipe) {
-      recipe = recipes[0];
-    }
-
-    // 4. Handle crafting table if needed
-    let craftingTable = null;
-    if (recipe && recipe.requiresCraftingTable) {
-      craftingTable = bot.findBlock({
-        matching: mcData.blocksByName.crafting_table.id,
-        maxDistance: 32,
-      });
-
-      if (!craftingTable) {
-        if (itemName === "crafting_table") {
-          // Special case: allow crafting crafting tables even if none is present
-          craftingTable = null;
-        } else {
-          return `Crafting ${itemName} requires a crafting table, and none was found nearby.`;
-        }
-      } else {
-        try {
-          await bot.pathfinder.goto(new GoalLookAtBlock(craftingTable.position, bot.world));
-        } catch (err: any) {
-          return `Error navigating to the crafting table: ${err.message}`;
-        }
+    if (itemByName.name === "crafting_table") {
+      const recipe = bot.recipesFor(itemByName.id, null, 1, null)[0];
+      if (!recipe) {
+        throw new Error(`Gather some logs to make a crafting table. You need 4 planks (1 log = 4 planks)`);
       }
+      bot.craft(recipe, 1, null);
+
+      return `Crafted a crafting table`;
+    }
+    const craftingTable = bot.findBlock({
+      matching: mcData.blocksByName.crafting_table.id,
+      maxDistance: 32,
+    });
+
+    if (!craftingTable) {
+      bot.chat("Crafting without a crafting table");
+    } else {
+      await bot.pathfinder.goto(
+        new GoalLookAtBlock(craftingTable.position, bot.world)
+      );
     }
 
-    try {
-      await bot.craft(recipe, count, craftingTable);
-      return `Successfully crafted ${itemName} ${count} times.`;
-    } catch (err: any) {
-      return `Error crafting ${itemName} ${count} times: ${err.message}`;
+
+    const recipe = bot.recipesFor(itemByName.id, null, 1, craftingTable)[0];
+
+    if (recipe) {
+      bot.chat(`I can make ${name}`);
+      let attemptedCount = count;
+
+      try {
+        await bot.craft(recipe, attemptedCount, craftingTable);
+        bot.chat(`I did the recipe for ${name} ${attemptedCount} times`);
+        return `Successfully crafted ${attemptedCount} ${name}${attemptedCount > 1 ? "s" : ""}`;
+        
+      } catch (err) {
+        const obs = new Observation(bot);
+        return `You crafted some ${name} but not all of them in the count. In your inventory, there is now ${obs.getInventoryItems()}`;
+      }
+    } else {
+      
+      _craftItemFailCount++;
+      if (_craftItemFailCount > 10) {
+        
+        throw new Error(
+          "craftItem failed too many times, check chat log to see what happened"
+        );
+      }
+      return failedCraftFeedback(bot, name, itemByName, craftingTable);
     }
   },
   {
     name: "craftItem",
-    description: "Craft an item using available materials. Will use crafting table if required.",
+    description: "Crafts a given item using available resources and a crafting table if needed",
     schema: z.object({
-      itemName: z.string().describe("The name of the item to craft"),
-      count: z.number().optional().describe("The number of items to craft (default is 1)"),
+      name: z.string().describe("The name of the item to craft (e.g., wooden_sword, furnace)"),
+      count: z.number().optional().default(1).describe("The number of items to craft."),
     }),
   }
 );
