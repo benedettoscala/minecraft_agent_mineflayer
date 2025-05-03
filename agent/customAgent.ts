@@ -10,7 +10,7 @@ import { smeltItem } from "../tools/smeltItem";
 import { ChatOpenAI } from "@langchain/openai";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
-import { StateGraph, MessagesAnnotation } from "@langchain/langgraph";
+import { StateGraph, MessagesAnnotation, MemorySaver } from "@langchain/langgraph";
 import { checkItemInsideChestTool, depositItemIntoChestTool, getItemFromChestTool } from "../tools/useChest";
 
 // Define the tools for the agent to use
@@ -123,11 +123,23 @@ async function createTask(state: typeof MessagesAnnotation.State) {
       content: `Given this user input, generate:
 
 A task wrapped in the <Task>...</Task> tags.
+A plan to accomplish the task wrapped in <Plan>...</Plan>.
 
 Example:
-<Task>Collect 5 pieces of iron</Task>
+<Task>Craft a Wooden Sword</Task> 
+<Plan>
+  1. Check if a crafting table is available nearby.
+  2. If no crafting table is available, craft one using the necessary materials.
+  3. If the required materials are not available, gather wood from trees.
+  4. Once enough wood is gathered, craft wooden planks.
+  5. Use the wooden planks and sticks to craft the wooden sword at the crafting table.
+  6. If you do not have sticks, craft them using wooden planks.
+  7. Once the sword is crafted, retrieve it from the crafting table.
+</Plan>
 
-User input ${promptUser}`,
+
+User input ${promptUser},
+User Observation ${firstHumanMessage},`,
     }),
   ];
 
@@ -151,5 +163,7 @@ const workflow = new StateGraph(MessagesAnnotation)
   .addConditionalEdges("agent", shouldContinue);
 
 // --- Compila e esporta ---
-const app = workflow.compile();
+const memory = new MemorySaver();
+
+const app = workflow.compile({ checkpointer: memory });
 export default app;

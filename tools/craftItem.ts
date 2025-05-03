@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 const { GoalLookAtBlock } = require("mineflayer-pathfinder").goals;
-
+const Item = require('prismarine-item')('1.8')
 const { failedCraftFeedback } = require("../utils/craftHelper"); // Assicurati che esista questa funzione
 
 let _craftItemFailCount = 0;
@@ -24,6 +24,15 @@ const craftItem = tool(
       throw new Error(`No item named ${name}`);
     }
 
+    if (itemByName.name === "crafting_table") {
+      const recipe = bot.recipesFor(itemByName.id, null, 1, null)[0];
+      if (!recipe) {
+        throw new Error(`Gather some logs to make a crafting table. You need 4 planks (1 log = 4 planks)`);
+      }
+      bot.craft(recipe, 1, null);
+
+      return `Crafted a crafting table`;
+    }
     const craftingTable = bot.findBlock({
       matching: mcData.blocksByName.crafting_table.id,
       maxDistance: 32,
@@ -36,6 +45,7 @@ const craftItem = tool(
         new GoalLookAtBlock(craftingTable.position, bot.world)
       );
     }
+
 
     const recipe = bot.recipesFor(itemByName.id, null, 1, craftingTable)[0];
 
@@ -53,12 +63,12 @@ const craftItem = tool(
       
       _craftItemFailCount++;
       if (_craftItemFailCount > 10) {
-        failedCraftFeedback(bot, name, itemByName, craftingTable); // ✅ Reinserita qui
+        
         throw new Error(
           "craftItem failed too many times, check chat log to see what happened"
         );
       }
-      return `Failed to find a valid recipe for ${name}`;
+      return "I cannot make " + name + ", but I couldn't determine why. Maybe there are some missing ingredients?";
     }
   },
   {

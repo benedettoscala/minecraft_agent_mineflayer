@@ -125,7 +125,7 @@ export async function askAgent(_imagePath: string, prompt: string) {
 
   const response = await app.invoke(
       { messages: trimmedMessages },
-      { configurable: { thread_id: 42 } }
+      { configurable: { thread_id: 43 } }
   );
 
   return response.messages[response.messages.length - 1].content;

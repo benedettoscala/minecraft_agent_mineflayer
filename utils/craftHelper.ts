@@ -5,7 +5,12 @@ import mcDataLoader from 'minecraft-data';
 
 export function failedCraftFeedback(bot: Bot, name: string, item: Item, craftingTable: any): string {
   const mcData = mcDataLoader(bot.version);
-  const recipes = bot.recipesAll(item.type, null, craftingTable);
+  //get the metadata of the item
+  const itemMeta = mcData.itemsByName[item.name].id;
+  if (!itemMeta) {
+    throw new Error(`No item named ${item.name}`);
+  }
+  const recipes = bot.recipesAll(item.type, itemMeta, craftingTable);
 
   if (!recipes.length) {
     throw new Error(`No crafting table nearby`);

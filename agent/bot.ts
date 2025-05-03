@@ -55,8 +55,9 @@ export function connect(port = Number(process.env.PORT) || 25565): Bot {
     bot.loadPlugin(collectBlock);
     bot.loadPlugin(pvp);
     bot.loadPlugin(minecraftHawkEye);
-  });
 
+    
+  });
 
 
   bot.on("health", () => {
