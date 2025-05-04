@@ -104,6 +104,8 @@ function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
   return "__end__";
 }
 
+
+let previousPrompts: (string | null)[] = [];
 // --- Nodes ---
 async function createTask(state: typeof MessagesAnnotation.State) {
   const firstHumanMessage = state.messages.find((msg) => msg._getType() === "human") as HumanMessage | undefined;
@@ -142,12 +144,16 @@ Example:
   7. Once the sword is crafted, retrieve it from the crafting table.
 </Plan>
 
-
-User input ${promptUser},
+Previous User Prompts: {${previousPrompts.join(", ")}},
+User Prompt(the one to follow): "${promptUser}",
 User Observation ${observationData},`,
     }),
   ];
 
+  previousPrompts.push(promptUser);
+  if (previousPrompts.length > 5) {
+    previousPrompts.shift(); // Remove the oldest prompt if we have more than 5
+  }
   const taskMessage = await taskCreatorModel.invoke(prompt);
   return { messages: [taskMessage] };
 }

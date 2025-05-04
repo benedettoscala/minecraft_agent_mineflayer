@@ -41,7 +41,7 @@ export function connect(port = Number(process.env.PORT) || 25565): Bot {
   const bot: Bot = mineflayer.createBot({
     host: process.env.IP ?? "localhost",
     port,
-    username: process.env.USERNAME ?? "Bot",
+    username: process.env.BOT_USERNAME ?? "Bot",
   });
 
   bot.once("spawn", () => {
