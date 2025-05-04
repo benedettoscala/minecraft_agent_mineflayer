@@ -28,7 +28,7 @@ const craftItem = tool(
     if (itemByName.name === "crafting_table") {
       const recipe = bot.recipesFor(itemByName.id, null, 1, null)[0];
       if (!recipe) {
-        throw new Error(`Gather some logs to make a crafting table. You need 4 planks (1 log = 4 planks)`);
+        throw new Error(`To craft a crafting table convert some logs (oak_log, etc.) in planks (oak_planks, etc.). You need 1 log to do that`);
       }
       bot.craft(recipe, 1, null);
 
@@ -61,7 +61,7 @@ const craftItem = tool(
         
       } catch (err) {
         const obs = new Observation(bot);
-        return `You crafted some ${name} but not all of them in the count. In your inventory, there is now ${obs.getInventoryItems()}`;
+        return `You crafted some ${name} but not all of them in the count. In your inventory, there is now ${obs.getInventoryItems().toString()}`;
       }
     } else {
       

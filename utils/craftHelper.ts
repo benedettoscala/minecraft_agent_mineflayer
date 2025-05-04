@@ -16,7 +16,7 @@ export function failedCraftFeedback(bot: Bot, name: string, item: Item, crafting
     throw new Error(`No crafting table nearby`);
   } else {
     const recipes = bot.recipesAll(
-      item.type,
+      itemMeta,
       null,
       craftingTable
     );

@@ -111,7 +111,7 @@ async function createTask(state: typeof MessagesAnnotation.State) {
 
   let promptUser = null;
   // prendi il prompt contenuto in PROMPT, cerca in tutti i messagi
-  for (const msg of state.messages) {
+  for (const msg of state.messages.slice().reverse()) {
     const message = typeof msg.content === "object" && Array.isArray(msg.content) && "text" in msg.content[0] ? msg.content[0].text : "";
     const match = typeof message === "string" ? message.match(/<PROMPT>(.*?)<\/PROMPT>/) : null;
     if (match) {
