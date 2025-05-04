@@ -3,7 +3,7 @@ import { tool } from "@langchain/core/tools";
 
 const observationTool = async (): Promise<string> => {
   const bot = require("../index").bot;
-  const { Observation } = require("../utils/observation"); // Assicurati che Observation sia esportato
+  const { Observation } = require("../agent/observation"); // Assicurati che Observation sia esportato
   const observation = new Observation(bot);
   return observation.toString();
 };

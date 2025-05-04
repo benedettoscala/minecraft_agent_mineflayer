@@ -90,7 +90,10 @@ export async function askAgentImage(base64Image: string, prompt: string) {
             includeSystem: true,
         }).invoke([systemMessage, obsMessage, message]);
 
-        const response = await app.invoke({ messages: trimmedMessages }, { configurable: { thread_id: 42 } });
+        const response = await app.invoke(
+            { messages: trimmedMessages },
+             { configurable: { thread_id: 42 }, recursionLimit: 100 }
+            );
         return response.messages[response.messages.length - 1].content;
     } catch (err) {
         console.error("Error in askAgentImage:", err);
@@ -101,32 +104,47 @@ export async function askAgentImage(base64Image: string, prompt: string) {
 }
 
 // Simpler askAgent version
+let isAgentRunning = false; // Definisci questa variabile in un file accessibile
+
 export async function askAgent(_imagePath: string, prompt: string) {
-  const bot = require("../index").bot;
-  const player = bot.entity.position;
-  const playerCoordinates = { x: player.x, y: player.y, z: player.z };
-  prompt += " Current player coordinates: " + JSON.stringify(playerCoordinates);
+  if (isAgentRunning) {
+    return "Text agent is currently processing another request. Please wait...";
+  }
 
-  const obs = new Observation(bot);
-  console.log("Observation of the game status: " + obs.toString() + "\n");
+  isAgentRunning = true;
 
-  const [systemMessage, obsMessage] = getSystemMessages(obs, prompt);
+  try {
+    const bot = require("../index").bot;
+    const player = bot.entity.position;
+    const playerCoordinates = { x: player.x, y: player.y, z: player.z };
+    prompt += " Current player coordinates: " + JSON.stringify(playerCoordinates);
 
-  const userMessage = new HumanMessage({
+    const obs = new Observation(bot);
+    console.log("Observation of the game status: " + obs.toString() + "\n");
+
+    const [systemMessage, obsMessage] = getSystemMessages(obs, prompt);
+
+    const userMessage = new HumanMessage({
       content: [{ type: "text", text: prompt }],
-  });
+    });
 
-  const trimmedMessages = await trimMessages({
+    const trimmedMessages = await trimMessages({
       maxTokens: 10000,
       tokenCounter: agentModel,
       strategy: "last",
       includeSystem: true,
-  }).invoke([systemMessage, obsMessage, userMessage]);
+    }).invoke([systemMessage, obsMessage, userMessage]);
 
-  const response = await app.invoke(
+    const response = await app.invoke(
       { messages: trimmedMessages },
-      { configurable: { thread_id: 43 } }
-  );
+      { configurable: { thread_id: 43 }, recursionLimit: 100 }
+    );
 
-  return response.messages[response.messages.length - 1].content;
+    return response.messages[response.messages.length - 1].content;
+  } catch (err) {
+    console.error("Error in askAgent:", err);
+    return "There was an error processing your request.";
+  } finally {
+    isAgentRunning = false;
+  }
 }
