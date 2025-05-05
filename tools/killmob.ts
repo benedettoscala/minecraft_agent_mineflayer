@@ -82,8 +82,6 @@ const killMob = tool(
 
       killed++;
     }
-
-    bot.save(`${mobName}_${count}_killed`);
     return `Successfully killed ${count} ${mobName}${count > 1 ? "s" : ""}`;
   },
   {

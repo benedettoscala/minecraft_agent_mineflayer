@@ -85,7 +85,7 @@ export function connect(port = Number(process.env.PORT) || 25565): Bot {
 
     if (messageLower === "hello") {
       bot.chat(`Hello, ${username}!`);
-    } else if (messageLower.includes("donna")) {
+    } else if (messageLower.includes("bot")) {
       const player = bot.players[username]?.entity;
       if (!player) return;
 
