@@ -177,7 +177,7 @@ class Observation {
 
     //to string method to print the current observation (it will have more observations in the future)
     public toString() {
-        return `Current health and hunger: ${this.getHealthAndHunger().health}/${this.getHealthAndHunger().maxHealth}\n` +
+        return `Current health and hunger: ${this.getHealthAndHunger().health}/20}\n` +
             `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(10, 10, 5))}\n` +
             `Surrounding blocks with names (less detail): ${Array.from(this.getSurroundingBlocksWithNames(5, 5, 5)).join(", ")}\n` +
             `Inventory items: ${Array.from(this.getInventoryItems()).join(", ")}\n` +
