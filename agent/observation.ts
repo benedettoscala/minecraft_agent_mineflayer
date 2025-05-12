@@ -1,3 +1,10 @@
+import { Vec3 } from 'vec3';   // se la usi già altrove
+interface BlockSummary {
+        id: number;
+        name: string;
+        count: number;
+        samplePositions: Vec3[];     // prime N posizioni di esempio
+    }
 
 class Observation {
     private bot: any;
@@ -24,31 +31,58 @@ class Observation {
         return this.inventoryItems;
     }
 
-    public getSurroundingBlocks(x_distance: number, y_distance: number, z_distance: number) {
-        const surroundingBlocks: {
-            name: string,
-            position: { x: number, y: number, z: number },
-            id: number
-        }[] = [];
     
-        for (let x = -x_distance; x <= x_distance; x++) {
-            for (let y = -y_distance; y <= y_distance; y++) {
-                for (let z = -z_distance; z <= z_distance; z++) {
-                    const pos = this.bot.entity.position.offset(x, y, z);
-                    const block = this.bot.blockAt(pos);
-                    if (block && block.type !== 0) {
-                        surroundingBlocks.push({
-                            name: block.name,
-                            //approssimazione a 2 decimali
-                            position: { x: parseFloat(pos.x.toFixed(2)), y: parseFloat(pos.y.toFixed(2)), z: parseFloat(pos.z.toFixed(2)) },
-                            id: block.type
-                        });
-                    }
-                }
+
+    /**
+     * Scansiona un volume cubico centrato sul giocatore, ma conserva
+     * soltanto i blocchi che cadono entro un raggio sferico.
+     * Restituisce un array riepilogativo raggruppato per tipo di blocco.
+     *
+     */
+    public getSurroundingBlocks(
+    xd: number,
+    yd: number,
+    zd: number,
+    samplesPerType = 5
+    ): BlockSummary[] {
+
+    const summaries = new Map<number, BlockSummary>();
+
+    // raggio della sfera: prendo il più grande dei tre
+    const radius   = Math.max(xd, yd, zd);
+    const radiusSq = radius * radius;
+
+    for (let x = -xd; x <= xd; x++) {
+        for (let y = -yd; y <= yd; y++) {
+        for (let z = -zd; z <= zd; z++) {
+
+            // ✅ test sferico: scarta i blocchi fuori raggio
+            if (x * x + y * y + z * z > radiusSq) continue;
+
+            const pos   = this.bot.entity.position.offset(x, y, z);
+            const block = this.bot.blockAt(pos);
+            if (!block || block.type === 0) continue;   // aria
+
+            // raggruppa per id (type)
+            let entry = summaries.get(block.type);
+            if (!entry) {
+            entry = { id: block.type, name: block.name, count: 0, samplePositions: [] };
+            summaries.set(block.type, entry);
+            }
+
+            entry.count++;
+
+            // conserva solo le prime N posizioni per tipo
+            if (entry.samplePositions.length < samplesPerType) {
+            entry.samplePositions.push(
+                new Vec3(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z))
+            );
             }
         }
-    
-        return surroundingBlocks;
+        }
+    }
+
+    return [...summaries.values()];
     }
     
     public getSurroundingBlocksWithNames(x_distance: number, y_distance: number, z_distance: number) {
@@ -144,7 +178,7 @@ class Observation {
     //to string method to print the current observation (it will have more observations in the future)
     public toString() {
         return `Current health and hunger: ${this.getHealthAndHunger().health}/${this.getHealthAndHunger().maxHealth}\n` +
-            `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(1, 1, 1))}\n` +
+            `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(10, 10, 5))}\n` +
             `Surrounding blocks with names (less detail): ${Array.from(this.getSurroundingBlocksWithNames(5, 5, 5)).join(", ")}\n` +
             `Inventory items: ${Array.from(this.getInventoryItems()).join(", ")}\n` +
             `Current bot position: ${JSON.stringify(this.getCurrentBotPosition())}\n`+ 
