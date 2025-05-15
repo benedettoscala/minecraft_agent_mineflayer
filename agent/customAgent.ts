@@ -55,8 +55,6 @@ const toolNode = new ToolNode(tools);
 const model = new ChatOpenAI({ model: "gpt-4o", temperature: 0.2 }).bindTools(tools);
 const taskCreatorModel = new ChatOpenAI({ model: "gpt-4o", temperature: 0.2 });
 
-const processedChatMessages = new WeakSet<AIMessage | HumanMessage>();
-
 function extractTask(messages: (AIMessage | HumanMessage)[]): string | null {
   for (const msg of messages) {
     const content = "content" in msg ? msg.content : "";
@@ -68,11 +66,12 @@ function extractTask(messages: (AIMessage | HumanMessage)[]): string | null {
 
 function extractMessage(messages: (AIMessage | HumanMessage)[]): string | null {
   for (const msg of messages) {
-    if (processedChatMessages.has(msg)) continue;
+    if (msg.additional_kwargs?.processed_chat) continue;
+
     const content = "content" in msg ? msg.content : "";
     const match = typeof content === "string" ? content.match(/<CHAT>([\s\S]*?)<\/CHAT>/) : null;
     if (match) {
-      processedChatMessages.add(msg);
+      msg.additional_kwargs = { ...msg.additional_kwargs, processed_chat: true };
       return match[1];
     }
   }
