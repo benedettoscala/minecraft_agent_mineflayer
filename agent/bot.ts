@@ -128,3 +128,5 @@ export function connect(port = Number(process.env.PORT) || 25565): Bot {
 
   return bot;
 }
+
+export { makeScreenshot };

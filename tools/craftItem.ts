@@ -61,7 +61,7 @@ const craftItem = tool(
         
       } catch (err) {
         const obs = new Observation(bot);
-        return `You crafted some ${name} but not all of them in the count. In your inventory, there is now ${obs.getInventoryItems().toString()}`;
+        return `You crafted some ${name} but not all of them in the count. In your inventory, there is now ${Array.from(obs.getInventoryItems()).join(", ")}`;
       }
     } else {
       
