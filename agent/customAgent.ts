@@ -26,6 +26,7 @@ import { checkObservation } from "../tools/checkObservation";
 import { makeScreenshot } from "./bot";
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
+import { goToBlock, goToPosition } from "../tools/goToBlock";
 
 const needVisionShim = tool(
   async () => "<ignored>",
@@ -49,6 +50,7 @@ const tools = [
   getItemFromChestTool,
   checkObservation,
   needVisionShim,
+  goToBlock
 ];
 const toolNode = new ToolNode(tools);
 
