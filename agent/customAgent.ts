@@ -108,7 +108,7 @@ function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
   const penultimateMessage = messages[messages.length - 2] as AIMessage | undefined;
 
   if (lastMessage._getType() === "ai" && penultimateMessage?._getType() === "ai") {
-    if (lastMessage.content === penultimateMessage.content) return "__end__";
+    if (lastMessage.content === penultimateMessage.content) return "cleanup";
   }
 
   if (lastMessage.tool_calls?.some(c => c.name === "need_vision")) return "vision";
@@ -120,7 +120,8 @@ function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
 
   const chatMsg = extractMessage(messages);
   if (chatMsg) require("../index").bot.chat(chatMsg);
-  return "__end__";
+
+  return "cleanup";
 }
 
 async function visionNode(state: typeof MessagesAnnotation.State) {
@@ -179,15 +180,26 @@ async function callModel(state: typeof MessagesAnnotation.State) {
   return { messages: [response] };
 }
 
+function cleanupImages(state: typeof MessagesAnnotation.State) {
+  for (const msg of state.messages) {
+    if (Array.isArray(msg.content)) {
+      msg.content = msg.content.filter(part => !(typeof part === "object" && part.type === "image_url"));
+    }
+  }
+  return { messages: [] };
+}
+
 const workflow = new StateGraph(MessagesAnnotation)
   .addNode("createTask", createTask)
   .addNode("agent", callModel)
   .addNode("tools", toolNode)
   .addNode("vision", visionNode)
+  .addNode("cleanup", cleanupImages)
   .addEdge("__start__", "createTask")
   .addEdge("createTask", "agent")
   .addEdge("tools", "agent")
   .addEdge("vision", "agent")
+  .addEdge("cleanup", "__end__")
   .addConditionalEdges("agent", shouldContinue);
 
 const memory = new MemorySaver();
