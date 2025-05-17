@@ -10,13 +10,19 @@ class Observation {
     private bot: any;
     private surroundingBlocks: Set<string>;
     private inventoryItems: Map<string, number>
+    private x_distance: number;
+    private y_distance: number;
+    private z_distance: number;
 
 
-    constructor(bot: any) {
+    constructor(bot: any, x_distance: number = 20, y_distance: number = 20, z_distance: number = 20) {
         this.bot = bot;
         this.surroundingBlocks = new Set();
         // Initialize the inventory items as a datastructure with pairs <ItemName, ItemCount>
         this.inventoryItems = new Map();
+        this.x_distance = x_distance;
+        this.y_distance = y_distance;
+        this.z_distance = z_distance;
     }
 
     public getInventoryItems() {
@@ -75,7 +81,7 @@ class Observation {
             // conserva solo le prime N posizioni per tipo
             if (entry.samplePositions.length < samplesPerType) {
             entry.samplePositions.push(
-                new Vec3(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z))
+                new Vec3(Math.round(pos.x)-1, Math.round(pos.y), Math.round(pos.z)-1)
             );
             }
         }
@@ -179,7 +185,7 @@ class Observation {
     public toString() {
         return `Current health and hunger: ${this.getHealthAndHunger().health}/20}\n` +
             `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(10, 10, 5))}\n` +
-            `Surrounding blocks with names (less detail): ${Array.from(this.getSurroundingBlocksWithNames(5, 5, 5)).join(", ")}\n` +
+            `Surrounding blocks with names (less detail): ${Array.from(this.getSurroundingBlocksWithNames(this.x_distance, this.y_distance, this.z_distance)).join(", ")}\n` +
             `Inventory items: ${Array.from(this.getInventoryItems()).join(", ")}\n` +
             `Current bot position: ${JSON.stringify(this.getCurrentBotPosition())}\n`+ 
             `Nearby living entities: ${JSON.stringify(this.getNearbyEntityNamesAndDistance())}\n`;
