@@ -27,15 +27,10 @@ import { makeScreenshot } from "./bot";
 import { z } from "zod";
 import { tool } from "@langchain/core/tools";
 import { goToBlock, goToPosition } from "../tools/goToBlock";
+import { lookAtTarget } from "../tools/lookAtTarget";
+import { needVisionShim } from "../tools/vision";
 
-const needVisionShim = tool(
-  async () => "<ignored>",
-  {
-    name: "need_vision",
-    description: "Ask the bot for a screenshot. Usage: need_vision({ prompt?: string })",
-    schema: z.object({ prompt: z.string().optional() }),
-  }
-);
+
 
 const tools = [
   goToPlayer,
@@ -50,7 +45,7 @@ const tools = [
   getItemFromChestTool,
   checkObservation,
   needVisionShim,
-  goToBlock
+  goToBlock,
 ];
 const toolNode = new ToolNode(tools);
 
@@ -125,20 +120,67 @@ function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
   return "cleanup";
 }
 
+import { Vec3 } from "vec3";
+// (facoltativo, ma esplicita) import type { Entity } from "mineflayer";
+
 async function visionNode(state: typeof MessagesAnnotation.State) {
   const last = state.messages[state.messages.length - 1] as AIMessage;
   const call = last.tool_calls?.find(c => c.name === "need_vision");
-  const prompt = call?.args?.prompt ?? extractVisionPromptTag(state.messages);
+  const { prompt = "", entity, blockPos } = call?.args ?? {};
+
+  const bot = require("../index").bot;
+
+  // ① -- Orienta se richiesto
+  if (entity) {
+    const candidates = Object.values(bot.entities).filter(
+      (e): e is { name: string; position: Vec3; height: number } =>
+        typeof e === "object" &&
+        e !== null &&
+        "name" in e &&
+        "position" in e &&
+        "height" in e &&
+        (e as any).name === entity
+    );
+
+    const target =
+      candidates.length > 0
+        ? candidates.reduce((closest, e) =>
+            e.position.distanceTo(bot.entity.position) <
+            closest.position.distanceTo(bot.entity.position)
+              ? e
+              : closest
+          )
+        : undefined;
+
+    if (target) {
+      const lookVec = target.position.offset(0, target.height / 2, 0);
+      await bot.lookAt(lookVec, true);
+    }
+  } else if (blockPos) {
+    const lookVec = new Vec3(blockPos.x + 0.5, blockPos.y + 0.5, blockPos.z + 0.5);
+    await bot.lookAt(lookVec, true);
+  }
+
+  // ② -- Cattura screenshot
   const screenshotDataUrl = await makeScreenshot();
-  const toolReply = new ToolMessage({ tool_call_id: call?.id ?? "no_id", content: "<screenshot_captured>" });
+
+  // ③ -- Risposte tool-call & immagine
+  const toolReply = new ToolMessage({
+    tool_call_id: call?.id ?? "no_id",
+    content: "<screenshot_captured>",
+  });
+
   const imageMsg = new HumanMessage({
     content: [
       { type: "text", text: prompt || "<OBSERVATION_SCREENSHOT/>" },
       { type: "image_url", image_url: { url: screenshotDataUrl } },
     ],
   });
+
   return { messages: [toolReply, imageMsg] };
 }
+
+
 
 let previousPrompts: (string | null)[] = [];
 
@@ -165,7 +207,7 @@ async function createTask(state: typeof MessagesAnnotation.State) {
 
   const taskPrompt = [
     new HumanMessage({
-      content: `Given this user input, generate:\n\n<Task>...</Task>\n<Plan>...</Plan>\nIf vision is needed, call need_vision({ prompt }) immediately.\n\nPrevious Prompts: {${previousPrompts.join(", ")}}\nCurrent Prompt: "${promptUser}"\nObservation: ${observationData}`,
+      content: `Given this user input, generate:\n\n<Task>...</Task>\n<Plan>...</Plan>\n\nPrevious Prompts: {${previousPrompts.join(", ")}}\nCurrent Prompt: "${promptUser}"\nObservation: ${observationData}`,
     }),
   ];
 
