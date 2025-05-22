@@ -80,8 +80,22 @@ export function connect(port = Number(process.env.PORT) || 25565): Bot {
 
   bot.on("chat", async (username: string, message: string) => {
     if (username === bot.username) return;
+    console.log(`Received message from ${username}: ${message}`);
+    //se non è un messaggio di un giocatore, non fare nulla
+    if (!bot.players[username]) return;
 
     const messageLower = message.toLowerCase();
+    if (
+      message.startsWith("/") ||                     // commands
+      messageLower.includes("killed bot") ||         // system kill message
+      messageLower.includes("bot was slain") ||      // other death formats
+      messageLower.includes("bot fell") ||
+      messageLower.includes("bot burned") ||
+      messageLower.includes("teleport") 
+     ) {
+      return;
+    }
+
 
     if (messageLower === "hello") {
       bot.chat(`Hello, ${username}!`);
@@ -125,6 +139,37 @@ export function connect(port = Number(process.env.PORT) || 25565): Bot {
       }
     }
   });
+
+  bot.on("death", () => {
+  bot.chat("I died! Teleporting to the nearest player...");
+
+  const targetPlayer = Object.values(bot.players).find(p => p.entity && p.username !== bot.username);
+  if (targetPlayer?.entity) {
+    const targetPos = targetPlayer.entity.position.offset(0, 0, 0); // clone the position
+    bot.chat(`Teleporting to ${targetPlayer.username}.`);
+    // wait for the bot to respawn
+    bot.once("respawn", () => {
+      bot.chat(`Respawned! Teleporting to ${targetPlayer.username}...`);
+      bot.chat(`/tp ${bot.username} ${targetPos.x} ${targetPos.y} ${targetPos.z}`);
+    });
+    
+
+  } else {
+    bot.chat("No players found to teleport to.");
+  }
+});
+
+  // Reconnect logic
+  bot.on("end", () => {
+    console.log("Bot disconnected. Reconnecting in 5 seconds...");
+    setTimeout(() => connect(port), 5000);
+  });
+
+  bot.on("error", (err) => {
+    console.error("Bot encountered an error:", err.message);
+    console.log("Reconnecting in 5 seconds...");
+    setTimeout(() => connect(port), 5000);
+  }); 
 
   return bot;
 }
