@@ -40,11 +40,10 @@ const agent = createReactAgent({
 
 // Shared helper
 function getSystemMessages(obs: Observation, basePrompt: string): [SystemMessage, HumanMessage] {
-    const systemText = fs.readFileSync(path.join(__dirname, "../../agent/systemMessage.json"), "utf8");
-    const systemContent = JSON.parse(systemText).content;
+    const systemText = fs.readFileSync(path.join(__dirname, "../../agent/systemMessage.txt"), "utf8");
 
     const systemMessage = new SystemMessage({
-        content: [{ type: "text", text: systemContent }],
+        content: [{ type: "text", text: systemText }],
     });
 
     const obsMessage = new HumanMessage({
@@ -53,6 +52,7 @@ function getSystemMessages(obs: Observation, basePrompt: string): [SystemMessage
 
     return [systemMessage, obsMessage];
 }
+
 
 // Lock state
 let isImageAgentRunning = false;

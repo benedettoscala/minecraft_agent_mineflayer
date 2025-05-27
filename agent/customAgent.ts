@@ -183,7 +183,7 @@ async function visionNode(state: typeof MessagesAnnotation.State) {
 
   const imageMsg = new HumanMessage({
     content: [
-      { type: "text", text: prompt + "Provide the output in <CHAT></CHAT>" || "<OBSERVATION_SCREENSHOT/>. Provide the output in <CHAT></CHAT>" },
+      { type: "text", text: prompt + "Speak as if you are a player inside the minecraft world you are seeing. Provide the output in <CHAT></CHAT>" || "<OBSERVATION_SCREENSHOT/>. Provide the output in <CHAT></CHAT>" },
       { type: "image_url", image_url: { url: screenshotDataUrl } },
     ],
   });
