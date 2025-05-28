@@ -19,12 +19,8 @@ An intelligent, modular AI agent for Minecraft, powered by [Mineflayer](https://
 minecraft\_agent\_mineflayer/
 ├── agent/                # LangChain agent and tool integration
 ├── tools/                # Custom Minecraft tools
-├── plugins/              # Mineflayer plugins (e.g., pathfinder, pvp)
-├── screenshots/          # Puppeteer screenshot utilities
-├── index.ts              # Main entry point
-├── bot.ts                # Bot creation and initialization
-├── langchain.config.ts   # LangChain configuration
-└── ...
+├── utils/                # Code utils
+└──  index.ts              # Main entry point
 
 ````
 
