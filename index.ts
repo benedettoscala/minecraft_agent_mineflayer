@@ -13,6 +13,6 @@ process.on("uncaughtException", (err: any) => {
 });
 
 
-const bot = connect(process.env.port ? Number(process.env.port) : undefined);
+const bot = connect(process.env.PORT ? Number(process.env.PORT) : undefined);
 
 export {bot};

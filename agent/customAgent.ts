@@ -50,6 +50,8 @@ const tools = [
 const toolNode = new ToolNode(tools);
 
 const model = new ChatOpenAI({ model: "gpt-4o", temperature: 0.2 }).bindTools(tools);
+const visionModel = new ChatOpenAI({ model: "gpt-4o", temperature: 0.2 });
+
 const taskCreatorModel = new ChatOpenAI({ model: "gpt-4o", temperature: 0.2 });
 
 function extractTask(messages: (AIMessage | HumanMessage)[]): string | null {
@@ -111,11 +113,13 @@ function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
   if (lastMessage.tool_calls?.length) return "tools";
   if (needsVisionTag(messages)) return "vision";
 
+    const chatMsg = extractMessage(messages);
+  if (chatMsg) require("../index").bot.chat(chatMsg);
+
   const task = extractTask(messages);
   if (task && !isTaskCompleteOrFailed(messages)) return "agent";
 
-  const chatMsg = extractMessage(messages);
-  if (chatMsg) require("../index").bot.chat(chatMsg);
+
 
   return "cleanup";
 }
@@ -126,9 +130,16 @@ import { Vec3 } from "vec3";
 async function visionNode(state: typeof MessagesAnnotation.State) {
   const last = state.messages[state.messages.length - 1] as AIMessage;
   const call = last.tool_calls?.find(c => c.name === "need_vision");
-  const { prompt = "", entity, blockPos } = call?.args ?? {};
+  let { prompt = "", entity, blockPos } = call?.args ?? {};
 
   const bot = require("../index").bot;
+
+  if (entity === "null") {
+    entity = null;
+  }
+  if (blockPos === "null") {
+    blockPos = null;
+  }
 
   // ① -- Orienta se richiesto
   if (entity) {
@@ -172,12 +183,14 @@ async function visionNode(state: typeof MessagesAnnotation.State) {
 
   const imageMsg = new HumanMessage({
     content: [
-      { type: "text", text: prompt || "<OBSERVATION_SCREENSHOT/>" },
+      { type: "text", text: prompt + "Speak as if you are a player inside the minecraft world you are seeing. Provide the output in <CHAT></CHAT>" || "<OBSERVATION_SCREENSHOT/>. Provide the output in <CHAT></CHAT>" },
       { type: "image_url", image_url: { url: screenshotDataUrl } },
     ],
   });
 
-  return { messages: [toolReply, imageMsg] };
+  const result = await visionModel.invoke([imageMsg]);
+
+  return { messages: [toolReply, result] };
 }
 
 
@@ -207,7 +220,16 @@ async function createTask(state: typeof MessagesAnnotation.State) {
 
   const taskPrompt = [
     new HumanMessage({
-      content: `Given this user input, generate:\n\n<Task>...</Task>\n<Plan>...</Plan>\n\nPrevious Prompts: {${previousPrompts.join(", ")}}\nCurrent Prompt: "${promptUser}"\nObservation: ${observationData}`,
+      content: `Based on the following user request and the current game observations, generate a detailed response in the following format:
+
+<Task>Describe the single high-level goal the bot should accomplish.</Task>
+<Plan>Break down the goal into a step-by-step plan that the bot can follow to complete the task.</Plan>
+
+Context:
+- Previous user prompts: ${previousPrompts.join(", ")}
+- Current user prompt: "${promptUser}"
+- Current world observation: ${observationData}
+`,
     }),
   ];
 
