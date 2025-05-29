@@ -2,6 +2,8 @@ import { Bot } from "mineflayer";
 import { askAgent } from "../agent/agent";
 import dotenv from "dotenv";
 import puppeteer, { Browser, Page } from "puppeteer";
+import fs from "fs";
+import { log } from "console";
 
 const mineflayer = require("mineflayer");
 const { mineflayer: mineflayerViewer } = require("prismarine-viewer");
@@ -77,8 +79,18 @@ export function connect(port = Number(process.env.PORT) || 25565): Bot {
   });
   **/
 
+  function logMessage(sender: string, message: string) {
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${sender}: ${message}\n`;
+    //data e ora in formato ISO 8601
+    //scrivi il messaggio in un file di log
+    fs.appendFileSync("chat_log.txt", logEntry, "utf8");
+
+  }
+
 
   bot.on("chat", async (username: string, message: string) => {
+    logMessage(username, message);
     if (username === bot.username) return;
     console.log(`Received message from ${username}: ${message}`);
     //se non è un messaggio di un giocatore, non fare nulla
@@ -159,17 +171,6 @@ export function connect(port = Number(process.env.PORT) || 25565): Bot {
   }
 });
 
-  // Reconnect logic
-  bot.on("end", () => {
-    console.log("Bot disconnected. Reconnecting in 5 seconds...");
-    setTimeout(() => connect(port), 5000);
-  });
-
-  bot.on("error", (err) => {
-    console.error("Bot encountered an error:", err.message);
-    console.log("Reconnecting in 5 seconds...");
-    setTimeout(() => connect(port), 5000);
-  }); 
 
   return bot;
 }

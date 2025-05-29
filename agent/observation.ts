@@ -6,6 +6,9 @@ interface BlockSummary {
         samplePositions: Vec3[];     // prime N posizioni di esempio
     }
 
+//static global variable to hold the most recent observation
+let int = 0; // to avoid circular dependency issues
+
 class Observation {
     private bot: any;
     private surroundingBlocks: Set<string>;
@@ -183,9 +186,10 @@ class Observation {
 
     //to string method to print the current observation (it will have more observations in the future)
     public toString() {
-        return `Current health and hunger: ${this.getHealthAndHunger().health}/20}\n` +
-            `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(10, 10, 5))}\n` +
-            `Surrounding blocks with names (less detail): ${Array.from(this.getSurroundingBlocksWithNames(this.x_distance, this.y_distance, this.z_distance)).join(", ")}\n` +
+        int += 1;
+        return `Observation (higher means more recent, and the highest is the one you need to consider) #${int}:\n` +
+        `Current health and hunger: ${this.getHealthAndHunger().health}/20}\n` +
+            `Surrounding blocks: ${JSON.stringify(this.getSurroundingBlocks(this.x_distance, this.y_distance, this.z_distance))}\n` +
             `Inventory items: ${Array.from(this.getInventoryItems()).join(", ")}\n` +
             `Current bot position: ${JSON.stringify(this.getCurrentBotPosition())}\n`+ 
             `Nearby living entities: ${JSON.stringify(this.getNearbyEntityNamesAndDistance())}\n`;

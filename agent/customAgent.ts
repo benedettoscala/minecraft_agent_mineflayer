@@ -14,7 +14,7 @@ import { craftItem } from "../tools/craftItem";
 import { killMob } from "../tools/killmob";
 import { smeltItem } from "../tools/smeltItem";
 import { ChatOpenAI } from "@langchain/openai";
-import { HumanMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
+import { HumanMessage, AIMessage, ToolMessage, trimMessages } from "@langchain/core/messages";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { StateGraph, MessagesAnnotation, MemorySaver } from "@langchain/langgraph";
 import {
@@ -125,6 +125,7 @@ function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
 }
 
 import { Vec3 } from "vec3";
+import { agentModel } from "./agent";
 // (facoltativo, ma esplicita) import type { Entity } from "mineflayer";
 
 async function visionNode(state: typeof MessagesAnnotation.State) {
@@ -183,7 +184,7 @@ async function visionNode(state: typeof MessagesAnnotation.State) {
 
   const imageMsg = new HumanMessage({
     content: [
-      { type: "text", text: prompt + "Speak as if you are a player inside the minecraft world you are seeing. Provide the output in <CHAT></CHAT>" || "<OBSERVATION_SCREENSHOT/>. Provide the output in <CHAT></CHAT>" },
+      { type: "text", text: prompt + " Speak as if you are a player inside the minecraft world you are seeing. Provide the output in <CHAT></CHAT>" || "<OBSERVATION_SCREENSHOT/>. Provide the output in <CHAT></CHAT>" },
       { type: "image_url", image_url: { url: screenshotDataUrl } },
     ],
   });
@@ -220,18 +221,21 @@ async function createTask(state: typeof MessagesAnnotation.State) {
 
   const taskPrompt = [
     new HumanMessage({
-      content: `Based on the following user request and the current game observations, generate a detailed response in the following format:
+  content: `Based on the following user request and the current game observations, generate a detailed response in the following format:
 
-<Task>Describe the single high-level goal the bot should accomplish.</Task>
-<Plan>Break down the goal into a step-by-step plan that the bot can follow to complete the task.</Plan>
+<Task>[Insert the task to follow here]</Task>
+<Plan>[Insert the plan to follow to achieve the task here]</Plan>
 
 Context:
 - Previous user prompts: ${previousPrompts.join(", ")}
 - Current user prompt: "${promptUser}"
 - Current world observation: ${observationData}
+- Possible tools to use to achieve the goal: ${tools.map(tool => tool.name).join(", ")}
 `,
-    }),
+}),
   ];
+
+  console.log("Available tools:", tools.map(tool => tool.name).join(", "));
 
   previousPrompts.push(promptUser);
   if (previousPrompts.length > 5) previousPrompts.shift();
@@ -240,8 +244,21 @@ Context:
   return { messages: [taskMessage] };
 }
 
+
+
 async function callModel(state: typeof MessagesAnnotation.State) {
-  const response = await model.invoke(state.messages);
+  const trimmedMessages = await trimMessages({
+        maxTokens: 10000,
+        tokenCounter: agentModel,
+        strategy: "last",
+        includeSystem: true,
+        }).invoke(state.messages);
+  
+
+  //current tokens length
+  
+  const response = await model.invoke(trimmedMessages);
+  console.log(response.usage_metadata)
   return { messages: [response] };
 }
 

@@ -106,10 +106,13 @@ export async function askAgentImage(base64Image: string, prompt: string) {
 // Simpler askAgent version
 let isAgentRunning = false; // Definisci questa variabile in un file accessibile
 
+let firstTime = true; // Variabile per controllare se è la prima volta che viene chiamata askAgent
+
 export async function askAgent(_imagePath: string, prompt: string) {
   if (isAgentRunning) {
     return "Text agent is currently processing another request. Please wait...";
   }
+
 
   isAgentRunning = true;
 
@@ -128,17 +131,30 @@ export async function askAgent(_imagePath: string, prompt: string) {
       content: [{ type: "text", text: prompt }],
     });
 
-    const trimmedMessages = await trimMessages({
+    let trimmedMessages;
+    if (firstTime) {
+      trimmedMessages = await trimMessages({
       maxTokens: 10000,
       tokenCounter: agentModel,
       strategy: "last",
       includeSystem: true,
-    }).invoke([systemMessage, obsMessage, userMessage]);
+      }).invoke([systemMessage, obsMessage, userMessage]);
+      firstTime = false;
+    } else {
+      trimmedMessages = await trimMessages({
+      maxTokens: 10000,
+      tokenCounter: agentModel,
+      strategy: "last",
+      includeSystem: false,
+      }).invoke([userMessage, obsMessage]);
+    }
 
     const response = await app.invoke(
       { messages: trimmedMessages },
       { configurable: { thread_id: 43 }, recursionLimit: 100 }
     );
+
+    firstTime = false;
 
     return response.messages[response.messages.length - 1].content;
   } catch (err) {
@@ -148,3 +164,5 @@ export async function askAgent(_imagePath: string, prompt: string) {
     isAgentRunning = false;
   }
 }
+
+export {agentModel}
