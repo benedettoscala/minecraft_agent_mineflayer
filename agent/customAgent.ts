@@ -126,6 +126,7 @@ function shouldContinue({ messages }: typeof MessagesAnnotation.State) {
 
 import { Vec3 } from "vec3";
 import { agentModel } from "./agent";
+import { stat } from "fs";
 // (facoltativo, ma esplicita) import type { Entity } from "mineflayer";
 
 async function visionNode(state: typeof MessagesAnnotation.State) {
@@ -219,12 +220,16 @@ async function createTask(state: typeof MessagesAnnotation.State) {
   const observation = new Observation(bot);
   const observationData = await observation.toString();
 
-  const taskPrompt = [
-    new HumanMessage({
-  content: `Based on the following user request and the current game observations, generate a detailed response in the following format:
+const taskPrompt = [
+  new HumanMessage({
+    content: `Based on the following user request and the current game observations, generate a detailed response in the following format:
 
 <Task>[Insert the task to follow here]</Task>
 <Plan>[Insert the plan to follow to achieve the task here]</Plan>
+
+Guidelines:
+- The <Task> should clearly state the objective.
+- The <Plan> should be concise but detailed enough to be actionable. It should outline the main steps needed to complete the task, without unnecessary elaboration.
 
 Context:
 - Previous user prompts: ${previousPrompts.join(", ")}
@@ -232,8 +237,9 @@ Context:
 - Current world observation: ${observationData}
 - Possible tools to use to achieve the goal: ${tools.map(tool => tool.name).join(", ")}
 `,
-}),
-  ];
+  }),
+];
+
 
   console.log("Available tools:", tools.map(tool => tool.name).join(", "));
 
@@ -243,23 +249,92 @@ Context:
   const taskMessage = await taskCreatorModel.invoke(taskPrompt);
   return { messages: [taskMessage] };
 }
-
-
+const summaryModel = new ChatOpenAI({
+  model: "gpt-4o",
+  temperature: 0.2,
+})
 
 async function callModel(state: typeof MessagesAnnotation.State) {
-  const trimmedMessages = await trimMessages({
-        maxTokens: 10000,
-        tokenCounter: agentModel,
-        strategy: "last",
-        includeSystem: true,
-        }).invoke(state.messages);
-  
+  // Calcolo token iniziali
+  const tokenCount = await agentModel.getNumTokensFromMessages(state.messages);
+  const TRIM_THRESHOLD = 2500;
 
-  //current tokens length
-  
-  const response = await model.invoke(trimmedMessages);
-  console.log(response.usage_metadata)
+  let messagesToSend: (AIMessage | HumanMessage | ToolMessage)[];
+
+  if (tokenCount.totalCount > TRIM_THRESHOLD) {
+    console.log("🔄 Token limit exceeded. Generating summary...");
+    console.log("🧠 Token count before preparing messages:", tokenCount.totalCount);
+    // Step 1: Genera riassunto da TUTTI i messaggi (non trimmati)
+    const summaryPrompt = [
+      new HumanMessage("Summarize the following conversation between a Minecraft bot and a user. Focus on the user's requests, the bot's actions, and overall task progression."),
+      ...state.messages,
+    ];
+
+    /* 
+    const summaryResponse = await summaryModel.invoke(summaryPrompt);
+    console.log("📜 Summary generated:", summaryResponse.content);
+    const summary = summaryResponse.content;
+
+    const summaryMessage = new HumanMessage({
+      content: `Summary of previous events:\n${summary}`,
+    });**/
+
+    // Step 2: Trim SOLO i messaggi originali (senza il riassunto)
+    let trimmedMessages = await trimMessages({
+      maxTokens: TRIM_THRESHOLD /*-300*/,
+      tokenCounter: async (msgs) => {
+        const result = await agentModel.getNumTokensFromMessages(msgs);
+        return result.totalCount;
+      },
+      strategy: "last",
+      includeSystem: true,
+    }).invoke(state.messages);
+
+    trimmedMessages = sanitizeMessagesForOpenAI(trimmedMessages);
+
+    // Step 3: Inserisci il riassunto come primo messaggio
+    messagesToSend = [/*summaryMessage,*/ ...trimmedMessages];
+    state.messages = messagesToSend; // Aggiorna lo stato con i messaggi trimmati
+  } else {
+    messagesToSend = state.messages;
+  }
+
+  const tokenInfo = await agentModel.getNumTokensFromMessages(messagesToSend);
+  console.log("🧠 Token count after preparing messages:", tokenInfo.totalCount);
+
+  const response = await model.invoke(messagesToSend);
+  console.log("📊 Usage metadata:", response.usage_metadata);
+
   return { messages: [response] };
+}
+function sanitizeMessagesForOpenAI(messages: Array<AIMessage | HumanMessage | ToolMessage>) {
+  const sanitized: typeof messages = [];
+  const validToolCallIds = new Set<string>();
+
+  for (const msg of messages) {
+    const msgType = msg._getType();
+
+    if (msgType === "ai" && "tool_calls" in msg.additional_kwargs) {
+      // Raccogliamo gli ID delle tool_calls
+      for (const call of msg.additional_kwargs.tool_calls || []) {
+        if (call.id) validToolCallIds.add(call.id);
+      }
+      sanitized.push(msg);
+    } else if (msgType === "tool") {
+      const toolMsg = msg as ToolMessage;
+
+      // Aggiungiamo solo se è valido
+      if (toolMsg.tool_call_id && validToolCallIds.has(toolMsg.tool_call_id)) {
+        sanitized.push(toolMsg);
+      } else {
+        console.warn(`🛑 ToolMessage con id ${toolMsg.tool_call_id} senza corrispondente tool_call — rimosso`);
+      }
+    } else {
+      sanitized.push(msg);
+    }
+  }
+
+  return sanitized;
 }
 
 function cleanupImages(state: typeof MessagesAnnotation.State) {
